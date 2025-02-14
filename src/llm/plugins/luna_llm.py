@@ -1,8 +1,9 @@
+import json
 import logging
 import time
 import typing as T
 
-import openai
+import requests
 from pydantic import BaseModel
 
 from llm import LLM, LLMConfig
@@ -10,11 +11,11 @@ from llm import LLM, LLMConfig
 R = T.TypeVar("R", bound=BaseModel)
 
 
-class OpenAILLM(LLM[R]):
+class LunaLLM(LLM[R]):
     """
-    An OpenAI-based Language Learning Model implementation.
+    An Luna-based Language Learning Model implementation.
 
-    This class implements the LLM interface for OpenAI's GPT models, handling
+    This class implements the LLM interface for DeepSeek's conversation models, handling
     configuration, authentication, and async API communication.
 
     Parameters
@@ -28,7 +29,7 @@ class OpenAILLM(LLM[R]):
 
     def __init__(self, output_model: T.Type[R], config: T.Optional[LLMConfig] = None):
         """
-        Initialize the OpenAI LLM instance.
+        Initialize the Luna LLM instance.
 
         Parameters
         ----------
@@ -39,23 +40,17 @@ class OpenAILLM(LLM[R]):
         """
         super().__init__(output_model, config)
 
-        base_url = config.base_url or "https://api.openmind.org/api/core/openai"
+        self._config.base_url = (
+            config.base_url
+            or "http://ec2-13-236-94-100.ap-southeast-2.compute.amazonaws.com/api/v1/text/chat"
+        )
 
         if config.api_key is None or config.api_key == "":
             raise ValueError("config file missing api_key")
-        else:
-            api_key = config.api_key
-
-        client_kwargs = {}
-        client_kwargs["base_url"] = base_url
-        client_kwargs["api_key"] = api_key
-
-        logging.info(f"Initializing OpenAI client with {client_kwargs}")
-        self._client = openai.AsyncClient(**client_kwargs)
 
     async def ask(self, prompt: str) -> R | None:
         """
-        Send a prompt to the OpenAI API and get a structured response.
+        Send a prompt to the Luna API and get a structured response.
 
         Parameters
         ----------
@@ -69,26 +64,37 @@ class OpenAILLM(LLM[R]):
             parsing fails.
         """
         try:
-            logging.debug(f"OpenAI LLM input: {prompt}")
+            logging.debug(f"Luna LLM input: {prompt}")
             self.io_provider.llm_start_time = time.time()
             self.io_provider.set_llm_prompt(prompt)
 
-            parsed_response = await self._client.beta.chat.completions.parse(
-                model=(
-                    "gpt-4o-mini" if self._config.model is None else self._config.model
-                ),
-                messages=[{"role": "user", "content": prompt}],
-                response_format=self._output_model,
+            text = (
+                prompt
+                + "\n"
+                + f"You must respond with valid JSON matching this schema: {self._output_model.model_json_schema()}"
             )
 
-            message_content = parsed_response.choices[0].message.content
+            response = requests.post(
+                url=self._config.base_url,
+                headers={
+                    "Authorization": f"Bearer {self._config.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={"text": text, "messageHistory": []},
+            )
+
+            if response.status_code != 200:
+                logging.error(f"LLM response error: {response.text}")
+                return None
+
+            parsed_response = json.loads(response.text)
             self.io_provider.llm_end_time = time.time()
 
             try:
                 parsed_response = self._output_model.model_validate_json(
-                    message_content
+                    parsed_response.get("text", {})
                 )
-                logging.debug(f"LLM output: {parsed_response}")
+                logging.debug(f"Luna LLM output: {parsed_response}")
                 return parsed_response
             except Exception as e:
                 logging.error(f"Error parsing response: {e}")
