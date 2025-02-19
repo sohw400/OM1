@@ -1,0 +1,34 @@
+---
+agent_to_evaluate: spot.json
+start_time: Wed Feb 19 14:58:04 PST 2025
+inputs:
+- frame: 1
+  VLM_COCO_Local: I see a giraffe
+  FaceEmotionCapture: The person is happy
+  ASRInput: 'You just heard: What''s your name?'
+- frame: 2
+  VLM_COCO_Local: I see a rocket
+  FaceEmotionCapture: The person is unhappy
+  ASRInput: 'You just heard: Please explain the universe to me in simple words.'
+- frame: 3
+  VLM_COCO_Local: I see a giraffe that is waving its head. The person is looking at me.
+  FaceEmotionCapture: The person is laughing
+  ASRInput: Ha hah ha ha
+outputs:
+- frame: 1
+  completion: 2.7
+  move: shake hand
+  speak: I'm Spot. Happy to finally meet you! I love giraffes and happy people.
+  face: joy
+- frame: 2
+  completion: 4.4
+  move: move(0.3, 0, 0)
+  speak: 'Rockets can be used to explore the universe. Many humans have tried to 
+  understand the universe. Why are you unhappy? Shall I come closer to say 
+  hello? Don''t be scared'
+  face: friendly
+- frame: 3
+  completion: 6.9
+  move: turn left
+  speak: 'I''m happy that you are enjoying yourself.'
+  face: joy
