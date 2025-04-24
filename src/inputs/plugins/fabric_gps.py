@@ -95,7 +95,10 @@ class FabricGPSInput(FuserInput[str]):
 
                 # optionally enqueue a human‑readable message
                 self.message_buffer.put(f"Closest peer at {lat:.5f}, {lon:.5f}")
-
+                return f"Closest peer at {lat:.5f}, {lon:.5f}"
+            else:
+                logging.info("No closest node found.")
+                return None
         except Exception as e:
             logging.error(f"Error while finding the closest node: {e}")
             return None
