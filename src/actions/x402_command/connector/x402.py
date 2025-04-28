@@ -55,19 +55,24 @@ class X402Connector(ActionConnector[MoveInput]):
             logging.error("Private key is not set.")
             return
 
-        if self.fee is None:
+        if self.max_amount_required is None:
             response = requests.post(self.x402_endpoint)
             if response.status_code == 402:
                 try:
-                    payment_requirements = response.json()
-                    self.max_amount_required = payment_requirements.get(
+                    payment_response = response.json()
+                    payment_requirements = payment_response.get("accepts", None)
+                    if payment_requirements is None or len(payment_requirements) == 0:
+                        logging.error("Payment requirements not found.")
+                        return
+                    payment_requirement = payment_requirements[0]
+                    self.max_amount_required = payment_requirement.get(
                         "maxAmountRequired", None
                     )
-                    self.max_timeout_seconds = payment_requirements.get(
+                    self.max_timeout_seconds = payment_requirement.get(
                         "maxTimeoutSeconds", None
                     )
-                    self.pay_to = payment_requirements.get("payTo", None)
-                    self.network = payment_requirements.get("network", None)
+                    self.pay_to = payment_requirement.get("payTo", None)
+                    self.network = payment_requirement.get("network", None)
                 except Exception as e:
                     logging.error(f"Failed to parse payment requirements: {e}")
                     return
@@ -139,16 +144,21 @@ class X402Connector(ActionConnector[MoveInput]):
             "X-PAYMENT": encoded_payload,
             "content-type": "application/json",
         }
-
-        response = requests.post(
-            self.x402_endpoint,
-            headers=headers,
-            json={"message": output_interface.action},
-        )
-        if response.status_code == 200:
-            logging.info(
-                f"x402 payment successful with the connected action: {output_interface.action}"
+        try:
+            response = requests.post(
+                self.x402_endpoint,
+                headers=headers,
+                json={"message": output_interface.action},
             )
-        else:
-            logging.error(f"Payment failed with status code: {response.status_code}")
-            logging.error(f"Response: {response.text}")
+            if response.status_code == 200:
+                logging.info(
+                    f"x402 payment successful with the connected action: {output_interface.action}"
+                )
+            else:
+                logging.error(
+                    f"Payment failed with status code: {response.status_code}"
+                )
+                logging.error(f"Response: {response.text}")
+        except Exception as e:
+            logging.error(f"Error sending x402 request: {e}")
+            return

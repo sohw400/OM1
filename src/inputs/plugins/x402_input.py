@@ -173,8 +173,6 @@ class X402Input(FuserInput[str]):
 {self.messages[-1]}
 // END
 """
-        self.io_provider.add_input(
-            self.descriptor_for_LLM, self.messages[-1], time.time()
-        )
+
         self.messages = []
         return result
