@@ -82,4 +82,4 @@ class SpeakElevenLabsTTSConnector(ActionConnector[SpeakInput]):
             # Check if the left trigger is pressed
             if lt_value > 0 and not self.speech_emitter:
                 self.speech_emitter = True
-                self.tts.add_pending_message("Hello, I am Eleven Labs TTS.")
+                self.tts.add_pending_message("Hello, can I get a caesar salad?")

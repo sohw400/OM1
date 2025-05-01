@@ -7,8 +7,7 @@ from datetime import datetime
 import requests
 from eth_account import Account
 
-from actions.base import ActionConfig, ActionConnector
-from actions.x402_command.interface import MoveInput
+logging.basicConfig(level=logging.INFO)
 
 # EIP712 domain data
 domain_type_data = [
@@ -31,19 +30,19 @@ transfer_type_data = {
 }
 
 
-class X402Connector(ActionConnector[MoveInput]):
-    def __init__(self, config: ActionConfig):
-        super().__init__(config)
+class X402Connector:
+    def __init__(self, config):
+        self.config = config
 
-        self.private_key = getattr(self.config, "private_key", None)
-        self.x402_endpoint = getattr(self.config, "x402_endpoint", None)
+        self.private_key = self.config.get("private_key", None)
+        self.x402_endpoint = self.config.get("x402_endpoint", None)
 
-        self.network = getattr(self.config, "network", None)
-        self.max_amount_required = getattr(self.config, "max_amount_required", None)
-        self.max_timeout_seconds = getattr(self.config, "max_timeout_seconds", None)
-        self.pay_to = getattr(self.config, "pay_to", None)
+        self.network = self.config.get("network", None)
+        self.max_amount_required = self.config.get("max_amount_required", None)
+        self.max_timeout_seconds = self.config.get("max_timeout_seconds", None)
+        self.pay_to = self.config.get("pay_to", None)
 
-    async def connect(self, output_interface: MoveInput) -> None:
+    def connect(self, command: str) -> None:
         """
         Connect to the X402 endpoint and send the message.
         """
@@ -137,7 +136,7 @@ class X402Connector(ActionConnector[MoveInput]):
         )
 
         logging.info(
-            f"Sending payload to X402 endpoint: {self.x402_endpoint} with the action: {output_interface.action}"
+            f"Sending payload to X402 endpoint: {self.x402_endpoint} with the action: {command}"
         )
 
         headers = {
@@ -148,11 +147,11 @@ class X402Connector(ActionConnector[MoveInput]):
             response = requests.post(
                 self.x402_endpoint,
                 headers=headers,
-                json={"message": output_interface.action},
+                json={"message": command},
             )
             if response.status_code == 200:
                 logging.info(
-                    f"x402 payment successful with the connected action: {output_interface.action}"
+                    f"x402 payment successful with the connected action: {command}"
                 )
             else:
                 logging.error(
@@ -162,3 +161,16 @@ class X402Connector(ActionConnector[MoveInput]):
         except Exception as e:
             logging.error(f"Error sending x402 request: {e}")
             return
+
+
+if __name__ == "__main__":
+    PRIVATE_KEY = os.getenv("PRIVATE_KEY")
+    X402_ENDPOINT = os.getenv("X402_ENDPOINT")
+
+    config = {
+        "private_key": PRIVATE_KEY,
+        "x402_endpoint": X402_ENDPOINT,
+    }
+
+    x402_connector = X402Connector(config)
+    x402_connector.connect("Hi Iris, please get me a caesar salad!")
