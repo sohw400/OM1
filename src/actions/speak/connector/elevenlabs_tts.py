@@ -1,7 +1,17 @@
+import logging
+
 from actions.base import ActionConfig, ActionConnector
 from actions.speak.interface import SpeakInput
 from providers.asr_provider import ASRProvider
 from providers.elevenlabs_tts_provider import ElevenLabsTTSProvider
+
+try:
+    import hid
+except ImportError:
+    logging.warning(
+        "HID library not found. Please install the HIDAPI library to use this plugin."
+    )
+    hid = None
 
 
 class SpeakElevenLabsTTSConnector(ActionConnector[SpeakInput]):
@@ -42,8 +52,34 @@ class SpeakElevenLabsTTSConnector(ActionConnector[SpeakInput]):
         )
         self.tts.start()
 
+        self.gamepad = None
+        if hid is not None:
+            for device in hid.enumerate():
+                logging.debug(f"device {device['product_string']}")
+                if "Xbox Wireless Controller" in device["product_string"]:
+                    vendor_id = device["vendor_id"]
+                    product_id = device["product_id"]
+                    self.gamepad = hid.Device(vendor_id, product_id)
+                    logging.info(
+                        f"Connected {device['product_string']} {vendor_id} {product_id}"
+                    )
+                    break
+
+        self.speech_emitter = False
+
     async def connect(self, output_interface: SpeakInput) -> None:
         # Block ASR until TTS is done
         self.tts.register_tts_state_callback(self.asr.audio_stream.on_tts_state_change)
         # Add pending message to TTS
         self.tts.add_pending_message(output_interface.action)
+
+    def tick(self) -> None:
+        if self.gamepad:
+            data = list(self.gamepad.read(64))
+
+            lt_value = data[9]
+
+            # Check if the left trigger is pressed
+            if lt_value > 0 and not self.speech_emitter:
+                self.speech_emitter = True
+                self.tts.add_pending_message("Hello, I am Eleven Labs TTS.")
