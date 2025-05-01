@@ -67,7 +67,10 @@ class SpeakElevenLabsTTSConnector(ActionConnector[SpeakInput]):
 
         self.lt_speech_emitter = False
         self.rt_speech_emitter = False
-        self.d_pad_speech_emitter = False
+        self.d_pad_speech_emitter_1 = False
+        self.d_pad_speech_emitter_7 = False
+        self.d_pad_speech_emitter_5 = False
+        self.d_pad_speech_emitter_3 = False
 
     async def connect(self, output_interface: SpeakInput) -> None:
         # Block ASR until TTS is done
@@ -87,15 +90,33 @@ class SpeakElevenLabsTTSConnector(ActionConnector[SpeakInput]):
             if lt_value > 0 and not self.lt_speech_emitter:
                 self.lt_speech_emitter = True
                 self.tts.add_pending_message(
-                    "Payment confirmed. Proceeding to fulfill the request."
+                    "Yay, snacks! Let me check the balance first."
                 )
 
             if rt_value > 0 and not self.rt_speech_emitter:
                 self.rt_speech_emitter = True
                 self.tts.add_pending_message(
+                    "Payment confirmed. Proceeding to fulfill the request."
+                )
+
+            if d_pad_value == 1 and not self.d_pad_speech_emitter_1:
+                self.d_pad_speech_emitter_1 = True
+                self.tts.add_pending_message(
                     "Hi Irwin. One Caesar salad and a muffin, please."
                 )
 
-            if d_pad_value > 0 and not self.d_pad_speech_emitter:
-                self.d_pad_speech_emitter = True
+            if d_pad_value == 7 and not self.d_pad_speech_emitter_7:
+                self.d_pad_speech_emitter_7 = True
                 self.tts.add_pending_message("Thank you. Have a nice day.")
+
+            if d_pad_value == 5 and not self.d_pad_speech_emitter_5:
+                self.d_pad_speech_emitter_5 = True
+                self.tts.add_pending_message(
+                    "Tada! One Caesar salad and a muffin—fresh from Café Centro!"
+                )
+
+            if d_pad_value == 3 and not self.d_pad_speech_emitter_3:
+                self.d_pad_speech_emitter_3 = True
+                self.tts.add_pending_message(
+                    "Anytime! Powered by snacks and love… and x402."
+                )
