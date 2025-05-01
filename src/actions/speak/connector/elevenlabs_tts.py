@@ -65,7 +65,9 @@ class SpeakElevenLabsTTSConnector(ActionConnector[SpeakInput]):
                     )
                     break
 
-        self.speech_emitter = False
+        self.lt_speech_emitter = False
+        self.rt_speech_emitter = False
+        self.d_pad_speech_emitter = False
 
     async def connect(self, output_interface: SpeakInput) -> None:
         # Block ASR until TTS is done
@@ -78,8 +80,22 @@ class SpeakElevenLabsTTSConnector(ActionConnector[SpeakInput]):
             data = list(self.gamepad.read(64))
 
             lt_value = data[9]
+            rt_value = data[11]
+            d_pad_value = data[13]
 
             # Check if the left trigger is pressed
-            if lt_value > 0 and not self.speech_emitter:
-                self.speech_emitter = True
-                self.tts.add_pending_message("Hello, can I get a caesar salad?")
+            if lt_value > 0 and not self.lt_speech_emitter:
+                self.lt_speech_emitter = True
+                self.tts.add_pending_message(
+                    "Payment confirmed. Proceeding to fulfill the request."
+                )
+
+            if rt_value > 0 and not self.rt_speech_emitter:
+                self.rt_speech_emitter = True
+                self.tts.add_pending_message(
+                    "Hi Irwin. One Caesar salad and a muffin, please."
+                )
+
+            if d_pad_value > 0 and not self.d_pad_speech_emitter:
+                self.d_pad_speech_emitter = True
+                self.tts.add_pending_message("Thank you. Have a nice day.")
