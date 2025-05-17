@@ -41,8 +41,14 @@
                       ".*/tf",
                       ".*/tf_static",
                      ],
-        service_servers: [".*/start_motor", ".*/stop_motor"],
-        service_clients: [".*/start_motor", ".*/stop_motor"],
+        service_servers: [
+          ".*/start_motor",
+          ".*/stop_motor"
+        ],
+        service_clients: [
+          ".*/start_motor",
+          ".*/stop_motor"
+        ],
         action_servers: [".*/dock", ".*/undock"],
         action_clients: [".*/dock", ".*/undock"],
       },

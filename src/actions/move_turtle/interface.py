@@ -8,7 +8,6 @@ class MovementAction(str, Enum):
     TURN_LEFT = "turn left"
     TURN_RIGHT = "turn right"
     MOVE_FORWARDS = "move forwards"
-    MOVE_BACK = "move back"
     STAND_STILL = "stand still"
 
 

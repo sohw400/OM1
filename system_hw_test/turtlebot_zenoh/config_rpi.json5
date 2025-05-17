@@ -42,8 +42,14 @@
                       ".*/wheel_status",
                       ".*/oakd/rgb/preview/image_raw" // allows camera data to flow to other computers
                      ],
-        service_servers: [".*/start_motor", ".*/stop_motor"],
-        service_clients: [".*/start_motor", ".*/stop_motor"],
+        service_servers: [
+          ".*/start_motor",
+          ".*/stop_motor"
+        ],
+        service_clients: [
+          ".*/start_motor",
+          ".*/stop_motor"
+        ],
         action_servers: [".*/dock", ".*/undock"],
         action_clients: [".*/dock", ".*/undock"],
       },
@@ -53,7 +59,7 @@
           send_goal: 1.0,
           cancel_goal: 1.0,
           get_result: [
-            ".*long_mission=3600", 
+            ".*long_mission=3600",
             ".*short_action=10.0",
             ".*/dock=120.0",
             ".*/undock=10.0",

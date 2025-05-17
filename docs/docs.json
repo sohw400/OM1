@@ -25,11 +25,13 @@
         "tab": "Guides",
         "groups": [
           {
-            "group": "Getting Started",
+            "group": "Overview",
             "pages": [
-              "getting-started/quick_start",
+              "getting-started/introduction",
+              "getting-started/get-started",              
+              "getting-started/configuration",
               "getting-started/architecture",
-              "getting-started/configuration"
+              "getting-started/faq"
             ]
           },
           {
@@ -38,23 +40,34 @@
               "examples/conversation",
               "examples/llm_models",
               "examples/smart_toy",
-              "getting-started/gazebo"
+              "getting-started/raspberrypi"
             ]
           },
           {
-            "group": "Robotics",
+            "group": "Robot Integration",
             "pages": [
-              "robotics/unitree_go2_quadruped",
               "robotics/unitree_g1_humanoid",
-              "robotics/turtlebot4_zenoh",
-              "robotics/asimov_governance",
-              "robotics/coinbase_hackathon"
+              "robotics/unitree_go2_quadruped",   
+              "robotics/motion_planning_unitree_go2",   
+              "robotics/motion_planning_lidarA1M8",
+              "robotics/gps_compass",
+              "robotics/tesla_dimo",
+              "examples/gazebo",
+              "robotics/coinbase-x402"
             ]
           },
           {
-            "group": "Development",
-            "pages": [
-              "development/intro"
+            "group": "Turtlebot4",
+            "pages": [        
+              "robotics/turtlebot4_zenoh",
+              "robotics/motion_planning_turtlebot4"
+            ]
+          },
+          {
+            "group": "Others",
+            "pages": [  
+              "robotics/asimov_governance",
+              "robotics/coinbase_hackathon"              
             ]
           }
         ]
@@ -74,6 +87,7 @@
             "group": "Core Endpoints",
             "pages": [
               "api-reference/endpoints/llm",
+              "api-reference/endpoints/multi_llm",
               "api-reference/endpoints/elevenlabs_tts",
               "api-reference/endpoints/riva_tts"
             ]
@@ -92,13 +106,8 @@
     "global": {
       "anchors": [
         {
-          "anchor": "Home",
-          "href": "https://www.openmind.org",
-          "icon": "house"
-        },
-        {
           "anchor": "Research",
-          "href": "https://www.openmind.org/research.html",
+          "href": "https://www.openmind.org/research",
           "icon": "book"
         }
       ]

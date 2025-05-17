@@ -1,11 +1,7 @@
 ---
-title: Quick Start
-description: "Get started with Openmind OS (OM1)"
+title: Installation and Setup
+description: "Learn how to install, set up and configure OM1 on your robots."
 ---
-
-## How To Use The Spot Agent
-
-The `Spot` agent uses your webcam to label objects and sends those captions to `OpenAI 4o`. The LLM then returns `movement`, `speech`, and `face` commands, which are displayed in `WebSim`. `WebSim` also shows basic timing and other debug information.
 
 ## System Requirements
 
@@ -16,11 +12,9 @@ The `Spot` agent uses your webcam to label objects and sends those captions to `
 
 ### Hardware
 
-- Memory (RAM): 8GB
-- Storage: 10GB
-- Webcam: 1080p
-- Speakers
-- Microphone
+- Memory (RAM): 4GB
+- Storage: 8GB
+- Camera, speakers, microphone etc as robots sensors
 
 ### Software
 
@@ -32,12 +26,19 @@ The `Spot` agent uses your webcam to label objects and sends those captions to `
 
 Ensure you have the following installed on your machine:
 
-#### Homebrew (Package Manager for macOS)
+- uv for Python package manager
+- ffmpeg for video processing
+- portaudio for audio input and output
 
-If Homebrew is not installed, run:
-```bash
+#### Package Manager
+
+```bash Mac
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
+
+``` bash Linux
+sudo apt-get update && sudo apt-get upgrade -y
+``` 
 
 #### UV (A Rust and Python package manager)
 
@@ -49,20 +50,31 @@ brew install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-#### Hardware audio drivers
+#### PortAudio Library
 
 This will let you speak to the LLM and it will generate voice outputs. On Mac and Linux, you need `portaudio`.
 
-For Mac:
-```bash Mac Audio Drivers
+```bash Mac
 brew install portaudio
 ```
 
-For Linux:
-```bash Linux Audio Drivers
+```bash Linux
 sudo apt-get update
 sudo apt-get install portaudio19-dev python-all-dev
 ```
+
+#### ffmpeg
+
+FFmpeg is the leading multimedia framework, able to decode, encode, transcode, mux, demux, stream, filter and play pretty much anything that humans and machines have created.
+
+```bash Mac
+brew install ffmpeg
+``` 
+
+```bash Linux
+sudo apt-get update
+sudo apt-get install ffmpeg
+``` 
 
 ### Installation and Setup
 
@@ -88,6 +100,12 @@ Locate the `config` folder and add your Openmind API key in `/config/spot.json`.
 ...
 ```
 
+Or create a `.env` file in the $HOME directory and add the following:
+
+```bash
+OM_API_KEY=your_api_key_here
+```
+
 3. Run the Spot Agent
 
 Run the following command to start the Spot Agent:
@@ -95,6 +113,12 @@ Run the following command to start the Spot Agent:
 ```bash
 uv run src/run.py spot
 ```
+
+4. WebSim to check input and output
+
+Go to [http://localhost:8000](http://localhost:8000) to see real time logs along with the input and output in the terminal. For easy debugging, add `--debug` to see additional logging information.
+
+**Congratulations!** - you just got started with OM1 and can now explore its capabilities.
 
 Some necessary packages will be installed during this process, the first time you run the command. This might take a little time. Please be patient. Then you will see the system come to life:
 
