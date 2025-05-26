@@ -12,8 +12,10 @@ class TestBluetoothKeepAliveProvider(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures before each test method."""
         # Clear singleton instance for testing
-        if hasattr(BluetoothKeepAliveProvider, "_instances"):
-            BluetoothKeepAliveProvider._instances.clear()
+        from providers.singleton import singleton
+
+        if hasattr(singleton, "instances"):
+            singleton.instances.clear()
 
         self.provider = BluetoothKeepAliveProvider(
             keepalive_interval=1.0,  # Short interval for testing

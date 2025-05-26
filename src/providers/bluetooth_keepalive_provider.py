@@ -70,10 +70,13 @@ class BluetoothKeepAliveProvider:
             self._last_audio_time = time.time()
 
     def _generate_keepalive_audio(self) -> None:
-        if not self._enabled or not self._tts_providers:
-            return
         with self._lock:
+            enabled = self._enabled
             providers = self._tts_providers.copy()
+
+        if not enabled or not providers:
+            return
+
         for provider in providers:
             provider.add_pending_message(".")
 
