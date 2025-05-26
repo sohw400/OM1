@@ -20,14 +20,19 @@ class BluetoothKeepAliveProvider:
         padding_duration: float = 0.3,
         enabled: bool = True,
     ):
-        self._lock = threading.Lock()
-        self._enabled = enabled
-        self._keepalive_interval = keepalive_interval
-        self._padding_duration = padding_duration
-        self._running = False
-        self._keepalive_thread: Optional[threading.Thread] = None
-        self._last_audio_time = 0.0
-        self._tts_providers = []
+        # Initialize or update configuration
+        if not hasattr(self, "_lock"):
+            self._lock = threading.Lock()
+            self._running = False
+            self._keepalive_thread: Optional[threading.Thread] = None
+            self._last_audio_time = 0.0
+            self._tts_providers = []
+
+        # Always update configuration parameters on each call
+        with self._lock:
+            self._enabled = enabled
+            self._keepalive_interval = keepalive_interval
+            self._padding_duration = padding_duration
 
     @property
     def enabled(self) -> bool:
@@ -44,10 +49,19 @@ class BluetoothKeepAliveProvider:
             if tts_provider not in self._tts_providers:
                 self._tts_providers.append(tts_provider)
 
+    def clear_tts_providers(self) -> None:
+        """Clear all registered TTS providers. Useful for test isolation."""
+        with self._lock:
+            self._tts_providers.clear()
+
     def add_audio_padding(self, text: str) -> str:
-        if not self._enabled or not text.strip():
+        with self._lock:
+            enabled = self._enabled
+            padding_duration = self._padding_duration
+
+        if not enabled or not text.strip():
             return text
-        padding_chars = int(self._padding_duration * 10)
+        padding_chars = int(padding_duration * 10)
         silent_padding = "." * min(padding_chars, 3)
         return f"{silent_padding} {text.strip()}"
 
@@ -71,10 +85,12 @@ class BluetoothKeepAliveProvider:
                 should_keepalive = (
                     self._enabled and time_since_last_audio >= self._keepalive_interval
                 )
+
             if should_keepalive:
                 self._generate_keepalive_audio()
                 with self._lock:
                     self._last_audio_time = current_time
+
             time.sleep(1.0)
 
     def start(self) -> None:
