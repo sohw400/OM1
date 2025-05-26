@@ -1,6 +1,7 @@
 from actions.base import ActionConfig, ActionConnector
 from actions.speak.interface import SpeakInput
 from providers.asr_provider import ASRProvider
+from providers.bluetooth_keepalive_provider import BluetoothKeepAliveProvider
 from providers.elevenlabs_tts_provider import ElevenLabsTTSProvider
 
 
@@ -42,8 +43,34 @@ class SpeakElevenLabsTTSConnector(ActionConnector[SpeakInput]):
         )
         self.tts.start()
 
+        # Initialize Bluetooth keep-alive provider with configuration
+        bluetooth_keepalive_enabled = getattr(
+            self.config, "bluetooth_keepalive_enabled", True
+        )
+        keepalive_interval = getattr(self.config, "bluetooth_keepalive_interval", 60.0)
+        audio_padding_duration = getattr(self.config, "audio_padding_duration", 0.3)
+
+        self.bluetooth_keepalive = BluetoothKeepAliveProvider(
+            keepalive_interval=keepalive_interval,
+            padding_duration=audio_padding_duration,
+            enabled=bluetooth_keepalive_enabled,
+        )
+
+        # Register TTS provider for keep-alive and start
+        self.bluetooth_keepalive.register_tts_provider(self.tts)
+        self.bluetooth_keepalive.start()
+
     async def connect(self, output_interface: SpeakInput) -> None:
         # Block ASR until TTS is done
         self.tts.register_tts_state_callback(self.asr.audio_stream.on_tts_state_change)
+
+        # Apply audio padding to prevent word clipping
+        padded_text = self.bluetooth_keepalive.add_audio_padding(
+            output_interface.action
+        )
+
+        # Notify keep-alive provider of audio activity
+        self.bluetooth_keepalive.notify_audio_activity()
+
         # Add pending message to TTS
-        self.tts.add_pending_message(output_interface.action)
+        self.tts.add_pending_message(padded_text)
