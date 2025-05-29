@@ -183,7 +183,7 @@ class Go2XboxControllerConnector(ActionConnector[IDLEInput]):
         None
         """
         time.sleep(0.1)
-        logging.info("Gamepad tick")
+        logging.debug("Gamepad tick")
 
         if hasattr(self.odom, "running"):
             nav = self.odom.odom
@@ -200,7 +200,7 @@ class Go2XboxControllerConnector(ActionConnector[IDLEInput]):
             # data = list(self.gamepad.read(64, timeout=50))
             data = list(self.gamepad.read(64, timeout=50))
 
-        if len(data) > 0:
+        if data and len(data) > 0:
             logging.debug(f"Gamepad data: {data}")
 
             # Process triggers for rotation

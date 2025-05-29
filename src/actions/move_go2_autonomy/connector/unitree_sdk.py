@@ -265,7 +265,7 @@ class MoveUnitreeSDKConnector(ActionConnector[MoveInput]):
 
     def tick(self) -> None:
 
-        logging.info("AI Motion Tick")
+        logging.debug("AI Motion Tick")
 
         self.odomDataRefresh()
 

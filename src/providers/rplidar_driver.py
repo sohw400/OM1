@@ -56,7 +56,7 @@ HEALTH_TYPE = 6
 
 # Constants & Command to start A2 motor
 MAX_MOTOR_PWM = 1023
-DEFAULT_MOTOR_PWM = 660
+DEFAULT_MOTOR_PWM = 400
 SET_PWM_BYTE = b"\xf0"
 
 _HEALTH_STATUSES = {
@@ -149,6 +149,7 @@ class RPDriver(object):
                 parity=serial.PARITY_NONE,
                 stopbits=serial.STOPBITS_ONE,
                 timeout=self.timeout,
+                write_timeout=self.timeout,
             )
         except serial.SerialException as err:
             raise RPLidarException(
@@ -415,30 +416,52 @@ class RPDriver(object):
                 print(f"M: Raw:{raw}")
                 yield _process_scan(raw)
             if self.scanning[2] == "express":
-                # print("M: Express scanning")
-                if self.express_trame == 32:
-                    self.express_trame = 0
-                    # if not self.express_data or type(self.express_data) == bool:
-                    if not self.express_data:
-                        self.logger.debug("reading first time bytes")
-                        self.express_data = ExpressPacket.from_string(
-                            self._read_response(dsize)
+                try:
+                    if self.express_trame == 32:
+                        self.express_trame = 0
+                        if not self.express_data:
+                            self.logger.debug("reading first time bytes")
+                            raw_data = self._read_response(dsize)
+                            self.express_data = ExpressPacket.from_string(raw_data)
+
+                        self.express_old_data = self.express_data
+                        self.logger.debug(
+                            "set old_data with start_angle %f",
+                            self.express_old_data.start_angle,
+                        )
+                        raw_data = self._read_response(dsize)
+                        self.express_data = ExpressPacket.from_string(raw_data)
+                        self.logger.debug(
+                            "set new_data with start_angle %f",
+                            self.express_data.start_angle,
                         )
 
-                    self.express_old_data = self.express_data
+                    self.express_trame += 1
                     self.logger.debug(
-                        "set old_data with start_angle %f",
+                        "process scan of frame %d with angle : %f and angle new : %f",
+                        self.express_trame,
                         self.express_old_data.start_angle,
-                    )
-                    self.express_data = ExpressPacket.from_string(
-                        self._read_response(dsize)
-                    )
-                    self.logger.debug(
-                        "set new_data with start_angle %f",
                         self.express_data.start_angle,
                     )
+                    yield _process_express_scan(
+                        self.express_old_data,
+                        self.express_data.start_angle,
+                        self.express_trame,
+                    )
 
-                self.express_trame += 1
+                except ValueError as e:
+                    self.logger.warning(f"Express packet corruption: {e}")
+
+                    self.express_trame = 32
+                    self.express_data = False
+
+                    self.stop()
+                    time.sleep(0.1)
+                    self.clean_input()
+                    time.sleep(0.1)
+                    self.start("express")
+                    continue
+
                 self.logger.debug(
                     "process scan of frame %d with angle : " "%f and angle new : %f",
                     self.express_trame,

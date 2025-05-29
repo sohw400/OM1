@@ -186,8 +186,7 @@ class RPLidarProvider:
         # logging.info(f"_preprocess_serial: {angles}")
 
         # distances are in millimeters
-        distances_mm = array[:, 1]
-        distances_m = [i / 1000 for i in distances_mm]
+        distances_m = array[:, 1] / 1000
 
         data = list(zip(angles, distances_m))
 
@@ -393,14 +392,13 @@ class RPLidarProvider:
                     for i, scan in enumerate(
                         self.lidar.iter_scans_local(
                             scan_type="express",
-                            max_buf_meas=2000,
-                            min_len=50,
-                            max_distance_mm=2000,
+                            max_buf_meas=0,
+                            min_len=25,
+                            max_distance_mm=1500,
                         )
                     ):
                         self._preprocess_serial(scan)
-                        # BUG BUG BUG
-                        time.sleep(0.1)
+                        time.sleep(0.05)
                 except Exception as e:
                     logging.error(f"Error in Serial RPLidar provider: {e}")
 
