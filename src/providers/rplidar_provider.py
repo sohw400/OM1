@@ -476,3 +476,130 @@ class RPLidarProvider:
                 retreat.append(p)
 
         return turn_left, advance, turn_right, retreat, ppl
+    
+    @staticmethod
+    def get_bezier_curves():
+        """Get the standard Bezier curves for path planning."""
+        import bezier
+        import numpy as np
+        
+        curves = [
+            bezier.Curve(
+                np.asfortranarray([[0.0, -0.3, -0.75], [0.0, 0.5, 0.40]]), degree=2
+            ),
+            bezier.Curve(
+                np.asfortranarray([[0.0, -0.3, -0.70], [0.0, 0.6, 0.70]]), degree=2
+            ),
+            bezier.Curve(
+                np.asfortranarray([[0.0, -0.2, -0.60], [0.0, 0.7, 0.90]]), degree=2
+            ),
+            bezier.Curve(
+                np.asfortranarray([[0.0, -0.1, -0.35], [0.0, 0.7, 1.03]]), degree=2
+            ),
+            bezier.Curve(
+                np.asfortranarray([[0.0, 0.0, 0.00], [0.0, 0.5, 1.05]]), degree=2
+            ),
+            bezier.Curve(
+                np.asfortranarray([[0.0, +0.1, +0.35], [0.0, 0.7, 1.03]]), degree=2
+            ),
+            bezier.Curve(
+                np.asfortranarray([[0.0, +0.2, +0.60], [0.0, 0.7, 0.90]]), degree=2
+            ),
+            bezier.Curve(
+                np.asfortranarray([[0.0, +0.3, +0.70], [0.0, 0.6, 0.70]]), degree=2
+            ),
+            bezier.Curve(
+                np.asfortranarray([[0.0, +0.3, +0.75], [0.0, 0.5, 0.40]]), degree=2
+            ),
+            bezier.Curve(
+                np.asfortranarray([[0.0, 0.0, 0.00], [0.0, -0.5, -1.05]]), degree=2
+            ),
+        ]
+        return curves
+    
+    @staticmethod
+    def compute_path_points(curves=None):
+        """Compute path points from Bezier curves."""
+        import numpy as np
+        
+        if curves is None:
+            curves = RPLidarProvider.get_bezier_curves()
+            
+        paths = []
+        pp = []
+        s_vals = np.linspace(0.0, 1.0, 10)
+
+        for curve in curves:
+            cp = curve.evaluate_multi(s_vals)
+            paths.append(cp)
+            pairs = list(zip(cp[0], cp[1]))
+            pp.append(pairs)
+            
+        return paths, pp
+    
+    @staticmethod
+    def transform_coordinates_static(data, max_relevant_distance, sensor_mounting_angle, angles_blanked):
+        """Static method to transform lidar coordinates - for use by other modules."""
+        import math
+        import numpy as np
+        
+        complexes = []
+
+        for angle, distance in data:
+            d_m = distance
+
+            # Don't worry about distant objects
+            if d_m > max_relevant_distance:
+                continue
+
+            # Correctly orient the sensor zero to the robot zero
+            angle = angle + sensor_mounting_angle
+            if angle >= 360.0:
+                angle = angle - 360.0
+            elif angle < 0.0:
+                angle = 360.0 + angle
+
+            # Convert the angle from [0 to 360] to [-180 to +180] range
+            angle = angle - 180.0
+
+            # Check for blanked angles (robot reflections)
+            reflection = False
+            for b in angles_blanked:
+                if angle >= b[0] and angle <= b[1]:
+                    reflection = True
+                    break
+
+            if reflection:
+                continue
+
+            # Convert to cartesian coordinates
+            a_rad = (angle + 180.0) * math.pi / 180.0
+            v1 = d_m * math.cos(a_rad)
+            v2 = d_m * math.sin(a_rad)
+
+            # Convert to x and y (x: backwards to forwards, y: left to right)
+            x = -1 * v2
+            y = -1 * v1
+
+            complexes.append([x, y, angle, d_m])
+
+        return np.array(complexes)
+    
+    @staticmethod
+    def validate_movement_direction(direction_paths, min_paths=1):
+        """Validate if a movement direction has enough valid paths."""
+        return len(direction_paths) >= min_paths
+    
+    @staticmethod
+    def get_movement_safety_check(turn_left, advance, turn_right, retreat, direction, min_paths=1):
+        """Check if a specific movement direction is safe."""
+        if direction == "turn left":
+            return RPLidarProvider.validate_movement_direction(turn_left, min_paths)
+        elif direction == "turn right":
+            return RPLidarProvider.validate_movement_direction(turn_right, min_paths)
+        elif direction == "advance" or direction == "move forwards":
+            return RPLidarProvider.validate_movement_direction(advance, min_paths)
+        elif direction == "retreat" or direction == "move back":
+            return RPLidarProvider.validate_movement_direction(retreat, min_paths)
+        return False
+EOF < /dev/null

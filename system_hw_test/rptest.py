@@ -4,7 +4,6 @@ import sys
 import threading
 import time
 
-import bezier
 import numpy as np
 import zenoh
 from matplotlib import pyplot as plot
@@ -16,6 +15,7 @@ sys.path.insert(0, "../src")
 
 try:
     from zenoh_idl import sensor_msgs
+    from providers.rplidar_provider import RPLidarProvider
 except ImportError:
     print("Please run this script from inside /system_hw_test")
 
@@ -28,31 +28,9 @@ print(parser.format_help())
 
 args = parser.parse_args()
 
-"""
-precompute Bezier trajectories
-"""
-curves = [
-    bezier.Curve(np.asfortranarray([[0.0, -0.3, -0.75], [0.0, 0.5, 0.40]]), degree=2),
-    bezier.Curve(np.asfortranarray([[0.0, -0.3, -0.70], [0.0, 0.6, 0.70]]), degree=2),
-    bezier.Curve(np.asfortranarray([[0.0, -0.2, -0.60], [0.0, 0.7, 0.90]]), degree=2),
-    bezier.Curve(np.asfortranarray([[0.0, -0.1, -0.35], [0.0, 0.7, 1.03]]), degree=2),
-    bezier.Curve(np.asfortranarray([[0.0, 0.0, 0.00], [0.0, +0.5, +1.05]]), degree=2),
-    bezier.Curve(np.asfortranarray([[0.0, +0.1, +0.35], [0.0, 0.7, 1.03]]), degree=2),
-    bezier.Curve(np.asfortranarray([[0.0, +0.2, +0.60], [0.0, 0.7, 0.90]]), degree=2),
-    bezier.Curve(np.asfortranarray([[0.0, +0.3, +0.70], [0.0, 0.6, 0.70]]), degree=2),
-    bezier.Curve(np.asfortranarray([[0.0, +0.3, +0.75], [0.0, 0.5, 0.40]]), degree=2),
-    bezier.Curve(np.asfortranarray([[0.0, 0.0, 0.00], [0.0, -0.5, -1.05]]), degree=2),
-]
-
-paths = []
-pp = []
-s_vals = np.linspace(0.0, 1.0, 10)
-
-for curve in curves:
-    cp = curve.evaluate_multi(s_vals)
-    paths.append(cp)
-    pairs = list(zip(cp[0], cp[1]))
-    pp.append(pairs)
+# Use centralized Bezier curve logic
+curves = RPLidarProvider.get_bezier_curves()
+paths, pp = RPLidarProvider.compute_path_points(curves)
 
 print(paths)
 print(pp)
@@ -192,137 +170,77 @@ def zenoh_scan(sample):
 
 
 def process(data):
+    # Use centralized coordinate transformation
+    array = RPLidarProvider.transform_coordinates_static(
+        data, max_relevant_distance, sensor_mounting_angle, angles_blanked
+    )
 
-    complexes = []
+    if array.ndim > 1:
+        # Sort by angle to handle sensor timing issues
+        sorted_indices = array[:, 2].argsort()
+        array = array[sorted_indices]
 
-    for angle, distance in data:
+        X = array[:, 0]
+        Y = array[:, 1]
+        A = array[:, 2]
+        D = array[:, 3]
 
-        d_m = distance
+        global points
+        points.set_data(X, Y)
 
-        # don't worry about distant objects
-        if d_m > 5.0:
-            continue
+        global pointsZoom
+        pointsZoom.set_data(X, Y)
 
-        # first, correctly orient the sensor zero to the robot zero
-        angle = angle + sensor_mounting_angle
-        if angle >= 360.0:
-            angle = angle - 360.0
-        elif angle < 0.0:
-            angle = 360.0 + angle
+        global line
+        line.set_data(A, D)
 
-        # then, convert to radians
-        a_rad = angle * math.pi / 180.0
+        # Determine possible paths
+        possible_paths = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        bad_paths = []
 
-        v1 = d_m * math.cos(a_rad)
-        v2 = d_m * math.sin(a_rad)
+        # Check path collisions
+        for x, y, d in list(zip(X, Y, D)):
+            if d > max_relevant_distance:
+                continue
+            for apath in possible_paths:
+                for point in pp[apath]:
+                    p1 = x - point[0]
+                    p2 = y - point[1]
+                    dist = math.sqrt(p1 * p1 + p2 * p2)
+                    if dist < half_width_robot:
+                        path_to_remove = np.array([apath])
+                        bad_paths.append(apath)
+                        possible_paths = np.setdiff1d(possible_paths, path_to_remove)
+                        break
 
-        # convert to x and y
-        # x runs backwards to forwards, y runs left to right
-        x = -1 * v2
-        y = -1 * v1
+        print(f"possible_paths RP Lidar: {possible_paths}")
 
-        # convert the angle to -180 to + 180 range
-        angle = angle - 180.0
+        # Use centralized path categorization
+        turn_left, advance, turn_right, retreat, ppl = RPLidarProvider.categorize_paths_static(possible_paths)
 
-        keep = True
-        for b in angles_blanked:
-            if angle >= b[0] and angle <= b[1]:
-                # this is a permanent reflection based on the robot
-                # disregard
-                keep = False
-                break
+        # Update visualization
+        for p in ppl:
+            lines[p].set_data(paths[p][0], paths[p][1])
+            lines[p].set_color("green")
 
-        # the final data ready to use for path planning
-        if keep:
-            complexes.append([x, y, angle, d_m])
+        if len(ppl) > 0:
+            print(f"There are {len(ppl)} possible paths.")
+            if len(turn_left) > 0:
+                print(f"You can turn left using paths: {turn_left}.")
+            if len(advance) > 0:
+                print("You can advance.")
+            if len(turn_right) > 0:
+                print(f"You can turn right using paths: {turn_right}.")
+            if len(retreat) > 0:
+                print("You can retreat.")
+        else:
+            print(
+                "You are surrounded by objects and cannot safely move in any direction. DO NOT MOVE."
+            )
 
-    array = np.array(complexes)
-
-    # sort data into strictly increasing angles to deal with sensor issues
-    # the sensor sometimes reports part of the previous scan and part of the next scan
-    # so you end up with multiple slightly different values for some angles at the
-    # junction
-    sorted_indices = array[:, 2].argsort()
-    array = array[sorted_indices]
-
-    X = array[:, 0]
-    Y = array[:, 1]
-    A = array[:, 2]
-    D = array[:, 3]
-
-    global points
-    points.set_data(X, Y)
-
-    global pointsZoom
-    pointsZoom.set_data(X, Y)
-
-    global line
-    line.set_data(A, D)
-
-    """
-    Determine set of possible paths
-    """
-    possible_paths = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-    bad_paths = []
-
-    # all the possible conflicting points
-    for x, y, d in list(zip(X, Y, D)):
-        if d > max_relevant_distance:  # too far away - we do not care
-            continue
-        for apath in possible_paths:
-            for point in pp[apath]:
-                p1 = x - point[0]
-                p2 = y - point[1]
-                dist = math.sqrt(p1 * p1 + p2 * p2)
-                if dist < half_width_robot:
-                    # too close - this path will not work
-                    path_to_remove = np.array([apath])
-                    bad_paths.append(apath)
-                    possible_paths = np.setdiff1d(possible_paths, path_to_remove)
-                    break  # no need to keep checking this path - we know this path is bad
-
-    print(f"possible_paths RP Lidar: {possible_paths}")
-
-    # convert to simple list
-    ppl = possible_paths.tolist()
-
-    turn_left = []
-    advance = []
-    turn_right = []
-    retreat = []
-
-    for p in ppl:
-        # all the possible paths
-        if p < 4:
-            turn_left.append(p)
-        elif p == 4:
-            advance.append(p)
-        elif p < 9:
-            turn_right.append(p)
-        elif p == 9:
-            retreat.append(p)
-        lines[p].set_data(paths[p][0], paths[p][1])
-        lines[p].set_color("green")
-
-    if len(ppl) > 0:
-        print(f"There are {len(ppl)} possible paths.")
-        if len(turn_left) > 0:
-            print(f"You can turn left using paths: {turn_left}.")
-        if len(advance) > 0:
-            print("You can advance.")
-        if len(turn_right) > 0:
-            print(f"You can turn right using paths: {turn_right}.")
-        if len(retreat) > 0:
-            print("You can retreat.")
-    else:
-        print(
-            "You are surrounded by objects and cannot safely move in any direction. DO NOT MOVE."
-        )
-
-    for p in bad_paths:
-        # these are all the bad paths
-        lines[p].set_data(paths[p][0], paths[p][1])
-        lines[p].set_color("red")
+        for p in bad_paths:
+            lines[p].set_data(paths[p][0], paths[p][1])
+            lines[p].set_color("red")
 
 
 if __name__ == "__main__":
