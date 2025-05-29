@@ -87,52 +87,9 @@ class RPLidarProvider:
 
         self.angles = None
         self.angles_final = None
-
-        """
-        precompute Bezier trajectories
-        """
-        self.curves = [
-            bezier.Curve(
-                np.asfortranarray([[0.0, -0.3, -0.75], [0.0, 0.5, 0.40]]), degree=2
-            ),
-            bezier.Curve(
-                np.asfortranarray([[0.0, -0.3, -0.70], [0.0, 0.6, 0.70]]), degree=2
-            ),
-            bezier.Curve(
-                np.asfortranarray([[0.0, -0.2, -0.60], [0.0, 0.7, 0.90]]), degree=2
-            ),
-            bezier.Curve(
-                np.asfortranarray([[0.0, -0.1, -0.35], [0.0, 0.7, 1.03]]), degree=2
-            ),
-            bezier.Curve(
-                np.asfortranarray([[0.0, 0.0, 0.00], [0.0, 0.5, 1.05]]), degree=2
-            ),
-            bezier.Curve(
-                np.asfortranarray([[0.0, +0.1, +0.35], [0.0, 0.7, 1.03]]), degree=2
-            ),
-            bezier.Curve(
-                np.asfortranarray([[0.0, +0.2, +0.60], [0.0, 0.7, 0.90]]), degree=2
-            ),
-            bezier.Curve(
-                np.asfortranarray([[0.0, +0.3, +0.70], [0.0, 0.6, 0.70]]), degree=2
-            ),
-            bezier.Curve(
-                np.asfortranarray([[0.0, +0.3, +0.75], [0.0, 0.5, 0.40]]), degree=2
-            ),
-            bezier.Curve(
-                np.asfortranarray([[0.0, 0.0, 0.00], [0.0, -0.5, -1.05]]), degree=2
-            ),
-        ]
-
-        self.paths = []
-        self.pp = []
-        self.s_vals = np.linspace(0.0, 1.0, 10)
-
-        for curve in self.curves:
-            cp = curve.evaluate_multi(self.s_vals)
-            self.paths.append(cp)
-            pairs = list(zip(cp[0], cp[1]))
-            self.pp.append(pairs)
+        
+        # Initialize path planning components
+        self._init_path_planning()
 
         # logging.info(self.paths)
         # logging.info(self.pp)
@@ -239,116 +196,103 @@ class RPLidarProvider:
         # print(f"Array {array_ready}")
         self._process(array_ready)
 
-    def _process(self, data):
+    def _init_path_planning(self):
+        """Initialize Bezier curves and path planning data structures."""
+        self.curves = [
+            bezier.Curve(
+                np.asfortranarray([[0.0, -0.3, -0.75], [0.0, 0.5, 0.40]]), degree=2
+            ),
+            bezier.Curve(
+                np.asfortranarray([[0.0, -0.3, -0.70], [0.0, 0.6, 0.70]]), degree=2
+            ),
+            bezier.Curve(
+                np.asfortranarray([[0.0, -0.2, -0.60], [0.0, 0.7, 0.90]]), degree=2
+            ),
+            bezier.Curve(
+                np.asfortranarray([[0.0, -0.1, -0.35], [0.0, 0.7, 1.03]]), degree=2
+            ),
+            bezier.Curve(
+                np.asfortranarray([[0.0, 0.0, 0.00], [0.0, 0.5, 1.05]]), degree=2
+            ),
+            bezier.Curve(
+                np.asfortranarray([[0.0, +0.1, +0.35], [0.0, 0.7, 1.03]]), degree=2
+            ),
+            bezier.Curve(
+                np.asfortranarray([[0.0, +0.2, +0.60], [0.0, 0.7, 0.90]]), degree=2
+            ),
+            bezier.Curve(
+                np.asfortranarray([[0.0, +0.3, +0.70], [0.0, 0.6, 0.70]]), degree=2
+            ),
+            bezier.Curve(
+                np.asfortranarray([[0.0, +0.3, +0.75], [0.0, 0.5, 0.40]]), degree=2
+            ),
+            bezier.Curve(
+                np.asfortranarray([[0.0, 0.0, 0.00], [0.0, -0.5, -1.05]]), degree=2
+            ),
+        ]
 
-        # logging.info(f"_process RP Lidar: {data}")
+        self.paths = []
+        self.pp = []
+        self.s_vals = np.linspace(0.0, 1.0, 10)
 
+        for curve in self.curves:
+            cp = curve.evaluate_multi(self.s_vals)
+            self.paths.append(cp)
+            pairs = list(zip(cp[0], cp[1]))
+            self.pp.append(pairs)
+
+    def _transform_coordinates(self, data):
+        """Transform raw lidar data to robot coordinate system."""
         complexes = []
 
         for angle, distance in data:
-
             d_m = distance
 
-            # don't worry about distant objects
+            # Don't worry about distant objects
             if d_m > self.max_relevant_distance:
                 continue
 
-            # first, correctly orient the sensor zero to the robot zero
+            # Correctly orient the sensor zero to the robot zero
             angle = angle + self.sensor_mounting_angle
             if angle >= 360.0:
                 angle = angle - 360.0
             elif angle < 0.0:
                 angle = 360.0 + angle
 
-            # convert the angle from [0 to 360] to [-180 to +180] range
+            # Convert the angle from [0 to 360] to [-180 to +180] range
             angle = angle - 180.0
 
+            # Check for blanked angles (robot reflections)
             reflection = False
             for b in self.angles_blanked:
                 if angle >= b[0] and angle <= b[1]:
-                    # this is a permanent robot reflection
-                    # disregard
                     reflection = True
                     break
 
             if reflection:
                 continue
 
-            # bugfix - this calc is based on the [0 to 360]
-            # the goal is to save compute, hence want to do the
-            # slow math as late as possible
+            # Convert to cartesian coordinates
             a_rad = (angle + 180.0) * math.pi / 180.0
-
             v1 = d_m * math.cos(a_rad)
             v2 = d_m * math.sin(a_rad)
 
-            # convert to x and y
-            # x runs backwards to forwards, y runs left to right
+            # Convert to x and y (x: backwards to forwards, y: left to right)
             x = -1 * v2
             y = -1 * v1
 
-            # the final data ready to use for path planning
             complexes.append([x, y, angle, d_m])
 
-        array = np.array(complexes)
+        return np.array(complexes)
 
-        # logging.info(f"final: {array.ndim}")
-
-        # sort data into strictly increasing angles to deal with sensor issues
-        # the sensor sometimes reports part of the previous scan and part of the next scan
-        # so you end up with multiple slightly different values for some angles at the
-        # junction
-
-        """
-        Determine set of possible paths
-        """
-        possible_paths = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-        if self.simple_paths:
-            # for the turtlebot - it can always turn in place,
-            # only question is whether it can advance
-            possible_paths = np.array([4])
-
-        if array.ndim > 1:
-            # we have valid LIDAR returns
-
-            sorted_indices = array[:, 2].argsort()
-            array = array[sorted_indices]
-
-            # logging.debug(f"_process array: {array}")
-
-            X = array[:, 0]
-            Y = array[:, 1]
-            # A = array[:, 2]
-            D = array[:, 3]
-
-            # all the possible conflicting points
-            for x, y, d in list(zip(X, Y, D)):
-                for apath in possible_paths:
-                    for point in self.pp[apath]:
-                        p1 = x - point[0]
-                        p2 = y - point[1]
-                        dist = math.sqrt(p1 * p1 + p2 * p2)
-                        # logging.debug(f"_process dist: {dist}")
-                        if dist < self.half_width_robot:
-                            # too close - this path will not work
-                            logging.debug(f"removing path: {apath}")
-                            path_to_remove = np.array([apath])
-                            possible_paths = np.setdiff1d(
-                                possible_paths, path_to_remove
-                            )
-                            logging.debug(f"remaining paths: {possible_paths}")
-                            break  # no need to keep checking this path - we know this path is bad
-
+    def _categorize_paths(self, possible_paths):
+        """Categorize valid paths into movement directions."""
         turn_left = []
         advance = []
         turn_right = []
         retreat = []
 
-        logging.debug(f"possible_paths RP Lidar: {possible_paths}")
-
-        # convert to simple list
         ppl = possible_paths.tolist()
-
         for p in ppl:
             if p < 4:
                 turn_left.append(p)
@@ -359,25 +303,68 @@ class RPLidarProvider:
             elif p == 9:
                 retreat.append(p)
 
-        return_string = "You are surrounded by objects and cannot safely move in any direction. DO NOT MOVE."
+        return turn_left, advance, turn_right, retreat, ppl
 
-        if len(ppl) > 0:
-            return_string = "The safe movement directions are: {"
-            if self.use_zenoh:  # i.e. you are controlling a TurtleBot4
-                if len(advance) > 0:
-                    return_string += "'turn left', 'turn right', 'move forwards', "
-                else:
-                    return_string += "'turn left', 'turn right', "
+    def _generate_movement_string(self, turn_left, advance, turn_right, retreat, ppl):
+        """Generate natural language description of safe movements."""
+        if len(ppl) == 0:
+            return "You are surrounded by objects and cannot safely move in any direction. DO NOT MOVE."
+
+        return_string = "The safe movement directions are: {"
+        if self.use_zenoh:  # TurtleBot4
+            if len(advance) > 0:
+                return_string += "'turn left', 'turn right', 'move forwards', "
             else:
-                if len(turn_left) > 0:
-                    return_string += "'turn left', "
-                if len(advance) > 0:
-                    return_string += "'move forwards', "
-                if len(turn_right) > 0:
-                    return_string += "'turn right', "
-                if len(retreat) > 0:
-                    return_string += "'move back', "
-            return_string += "'stand still'}. "
+                return_string += "'turn left', 'turn right', "
+        else:
+            if len(turn_left) > 0:
+                return_string += "'turn left', "
+            if len(advance) > 0:
+                return_string += "'move forwards', "
+            if len(turn_right) > 0:
+                return_string += "'turn right', "
+            if len(retreat) > 0:
+                return_string += "'move back', "
+        return_string += "'stand still'}. "
+        return return_string
+
+    def _process(self, data):
+        """Process lidar data and determine safe movement paths."""
+        # Transform raw data to robot coordinates
+        array = self._transform_coordinates(data)
+
+        # Determine possible paths
+        possible_paths = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        if self.simple_paths:
+            possible_paths = np.array([4])  # TurtleBot4 can only advance
+
+        if array.ndim > 1:
+            # Sort by angle to handle sensor timing issues
+            sorted_indices = array[:, 2].argsort()
+            array = array[sorted_indices]
+
+            X = array[:, 0]
+            Y = array[:, 1]
+            D = array[:, 3]
+
+            # Check path collisions
+            for x, y, d in list(zip(X, Y, D)):
+                for apath in possible_paths:
+                    for point in self.pp[apath]:
+                        p1 = x - point[0]
+                        p2 = y - point[1]
+                        dist = math.sqrt(p1 * p1 + p2 * p2)
+                        if dist < self.half_width_robot:
+                            logging.debug(f"removing path: {apath}")
+                            path_to_remove = np.array([apath])
+                            possible_paths = np.setdiff1d(
+                                possible_paths, path_to_remove
+                            )
+                            break
+
+        # Categorize and generate output
+        turn_left, advance, turn_right, retreat, ppl = self._categorize_paths(possible_paths)
+        return_string = self._generate_movement_string(turn_left, advance, turn_right, retreat, ppl)
 
         self._raw_scan = array
         self._lidar_string = return_string
@@ -468,3 +455,24 @@ class RPLidarProvider:
             A natural language summary of possible motion paths
         """
         return self._lidar_string
+    
+    @staticmethod
+    def categorize_paths_static(possible_paths):
+        """Static method to categorize paths - for use by other modules."""
+        turn_left = []
+        advance = []
+        turn_right = []
+        retreat = []
+
+        ppl = possible_paths.tolist() if hasattr(possible_paths, 'tolist') else possible_paths
+        for p in ppl:
+            if p < 4:
+                turn_left.append(p)
+            elif p == 4:
+                advance.append(p)
+            elif p < 9:
+                turn_right.append(p)
+            elif p == 9:
+                retreat.append(p)
+
+        return turn_left, advance, turn_right, retreat, ppl

@@ -235,24 +235,13 @@ class MoveUnitreeSDKConnector(ActionConnector[MoveInput]):
                 )
 
                 if self.lidar:
-                    self.turn_left = []
-                    self.advance = []
-                    self.turn_right = []
-                    self.retreat = []
-                    # reconfirm possible paths
+                    # reconfirm possible paths using centralized logic
                     # this is needed due to the 2s latency of the LLMs
                     possible_paths = self.lidar.valid_paths
                     logging.info(f"Action - Valid paths: {possible_paths}")
                     if possible_paths is not None:
-                        for p in possible_paths:
-                            if p < 4:
-                                self.turn_left.append(p)
-                            elif p == 4:
-                                self.advance.append(p)
-                            elif p < 9:
-                                self.turn_right.append(p)
-                            elif p == 9:
-                                self.retreat.append(p)
+                        self.turn_left, self.advance, self.turn_right, self.retreat, _ = \
+                            RPLidarProvider.categorize_paths_static(possible_paths)
 
             else:
                 logging.warn("Go2 x,y,yaw: NAVIGATION NOT PROVIDING DATA")
