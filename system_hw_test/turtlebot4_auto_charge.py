@@ -37,6 +37,9 @@ class AutoCharge:
         self.docker_position = None
         self.current_pose = None
 
+        self.angle_to_dock = 0.0
+        self.distance_to_dock = 0.0
+
     def listen_odom(self, data: zenoh.Sample):
         odom_data = nav_msgs.Odometry.deserialize(data.payload.to_bytes())
         position = odom_data.pose.pose.position
@@ -61,6 +64,9 @@ class AutoCharge:
             )
             self.docker_position = self.current_pose
 
+        self.angle_to_dock = self.get_angle_to_dock()
+        self.distance_to_dock = self.get_distance_to_dock()
+
     def listen_scan(self, data: zenoh.Sample):
         self.scan_data = sensor_msgs.LaserScan.deserialize(data.payload.to_bytes())
 
@@ -81,7 +87,7 @@ class AutoCharge:
         shift = num_ranges // 4
         corrected_ranges = np.roll(ranges, -shift)
 
-        front_ranges = np.concatenate([corrected_ranges[:30], corrected_ranges[-30:]])
+        front_ranges = np.concatenate([corrected_ranges[90:0], corrected_ranges[-90:]])
         front_ranges = front_ranges[np.isfinite(front_ranges) & (front_ranges > 0.1)]
 
         if len(front_ranges) > 0:
@@ -99,30 +105,85 @@ class AutoCharge:
         num_ranges = len(ranges)
         shift = num_ranges // 4
         corrected_ranges = np.roll(ranges, -shift)
+        degrees_per_reading = 360.0 / num_ranges
 
-        # Check left and right clearance
-        left_ranges = corrected_ranges[45:135]  # Left 90 degrees
-        right_ranges = corrected_ranges[225:315]  # Right 90 degrees
+        best_angle = None
+        best_score = 0
+        min_clearance = 0.8
 
-        left_clearance = np.mean(
-            left_ranges[np.isfinite(left_ranges) & (left_ranges > 0.1)]
-        )
-        right_clearance = np.mean(
-            right_ranges[np.isfinite(right_ranges) & (right_ranges > 0.1)]
-        )
+        # Check left side: 0° to 90° in 10° segments
+        for i in range(3):  # 9 segments of 10° each
+            start_deg = i * 10
+            end_deg = (i + 1) * 10
+            center_angle = -(start_deg + end_deg) / 2.0
 
-        if left_clearance > right_clearance:
-            t = geometry_msgs.Twist(
-                linear=geometry_msgs.Vector3(x=0.0, y=0.0, z=0.0),
-                angular=geometry_msgs.Vector3(x=0.0, y=0.0, z=-0.5),
+            # Convert to indices
+            start_idx = int(-end_deg / degrees_per_reading) % num_ranges
+            end_idx = int(-start_deg / degrees_per_reading) % num_ranges
+
+            if start_idx <= end_idx:
+                segment_ranges = corrected_ranges[start_idx : end_idx + 1]
+            else:
+                segment_ranges = np.concatenate(
+                    [corrected_ranges[start_idx:], corrected_ranges[: end_idx + 1]]
+                )
+
+            valid_ranges = segment_ranges[
+                np.isfinite(segment_ranges) & (segment_ranges > 0.1)
+            ]
+
+            if len(valid_ranges) > 0:
+                min_dist = np.min(valid_ranges)
+                clear_pct = np.sum(valid_ranges >= min_clearance) / len(valid_ranges)
+                score = min_dist * clear_pct
+
+                if score > best_score and min_dist >= min_clearance * 0.7:
+                    best_score = score
+                    best_angle = center_angle
+                    print(
+                        f"Left {start_deg}-{end_deg}°: min={min_dist:.2f}m, clear={clear_pct:.1%}, score={score:.3f}"
+                    )
+
+        # Check right side: 0° to 90° in 10° segments
+        for i in range(3):  # 9 segments of 10° each
+            start_deg = i * 10
+            end_deg = (i + 1) * 10
+            center_angle = (start_deg + end_deg) / 2.0
+
+            # Convert to indices
+            start_idx = int(start_deg / degrees_per_reading)
+            end_idx = int(end_deg / degrees_per_reading)
+
+            segment_ranges = corrected_ranges[start_idx : end_idx + 1]
+            valid_ranges = segment_ranges[
+                np.isfinite(segment_ranges) & (segment_ranges > 0.1)
+            ]
+
+            if len(valid_ranges) > 0:
+                min_dist = np.min(valid_ranges)
+                clear_pct = np.sum(valid_ranges >= min_clearance) / len(valid_ranges)
+                score = min_dist * clear_pct
+
+                if score > best_score and min_dist >= min_clearance * 0.7:
+                    best_score = score
+                    best_angle = center_angle
+                    print(
+                        f"Right {start_deg}-{end_deg}°: min={min_dist:.2f}m, clear={clear_pct:.1%}, score={score:.3f}"
+                    )
+
+        if best_angle is not None:
+            target_yaw = self.current_pose["yaw_odom_m180_p180"] + best_angle
+            if target_yaw < -180:
+                target_yaw += 360
+            elif target_yaw > 180:
+                target_yaw -= 360
+
+            print(
+                f"Best avoidance angle: {best_angle:.2f}° -> Target yaw: {target_yaw:.2f}°"
             )
+            return target_yaw
         else:
-            t = geometry_msgs.Twist(
-                linear=geometry_msgs.Vector3(x=0.0, y=0.0, z=0.0),
-                angular=geometry_msgs.Vector3(x=0.0, y=0.0, z=0.5),
-            )
-
-        return t
+            return -1
 
     def get_distance_to_dock(self):
         if not self.current_pose or not self.docker_position:
@@ -164,36 +225,75 @@ class AutoCharge:
                 print("Set docker position to 0, 0, 0 by default.")
                 self.docker_position = {"x": 0.0, "y": 0.0, "z": 0.0, "yaw": 0.0}
 
-            distance = self.get_distance_to_dock()
-            angle_to_dock = self.get_angle_to_dock()
+            while abs(self.angle_to_dock) > 0.1:
+                print(
+                    f"Adjusting angle to dock: {self.angle_to_dock:.2f} rad, distance: {self.distance_to_dock:.2f} m"
+                )
+                angular_z = max(-0.5, min(0.5, self.angle_to_dock * 2.0))
+                t = geometry_msgs.Twist(
+                    linear=geometry_msgs.Vector3(x=0, y=0.0, z=0.0),
+                    angular=geometry_msgs.Vector3(x=0.0, y=0.0, z=angular_z),
+                )
+                self.session.put(f"{self.urid}/c3/cmd_vel", t.serialize())
+                time.sleep(0.5)
+
+                t = geometry_msgs.Twist(
+                    linear=geometry_msgs.Vector3(x=0.1, y=0.0, z=0.0),
+                    angular=geometry_msgs.Vector3(x=0.0, y=0.0, z=0.0),
+                )
+                self.session.put(f"{self.urid}/c3/cmd_vel", t.serialize())
+                time.sleep(0.5)
 
             obstacle_ahead = self.check_obstacles_ahead()
             print(
-                f"Distance to dock: {distance:.2f}, Angle to dock: {angle_to_dock:.2f}"
+                f"Distance to dock: {self.distance_to_dock:.2f}, Angle to dock: {self.angle_to_dock:.2f}"
             )
-            if obstacle_ahead and distance > 0.2:
-                t = self.avoid_obstacles()
-                if t:
-                    print("Obstacle detected, avoiding...")
-                    self.session.put(f"{self.urid}/c3/cmd_vel", t.serialize())
+            if obstacle_ahead and self.distance_to_dock > 0.2:
+                target_yaw = self.avoid_obstacles()
+                if target_yaw is not None:
+                    if target_yaw == -1:
+                        print("No valid avoidance angle found, stopping.")
+                        t = geometry_msgs.Twist(
+                            linear=geometry_msgs.Vector3(x=-0.5, y=0.0, z=0.0),
+                            angular=geometry_msgs.Vector3(x=0.0, y=0.0, z=0.0),
+                        )
+                        self.session.put(f"{self.urid}/c3/cmd_vel", t.serialize())
+                        continue
+
+                    while abs(target_yaw - self.current_pose["yaw_odom_m180_p180"]) > 5:
+                        gap = target_yaw - self.current_pose["yaw_odom_m180_p180"]
+                        if gap > 180:
+                            gap -= 360
+                        elif gap < -180:
+                            gap += 360
+                        turning_direction = 0.5 if gap < 0 else -0.5
+                        t = geometry_msgs.Twist(
+                            linear=geometry_msgs.Vector3(x=0, y=0.0, z=0.0),
+                            angular=geometry_msgs.Vector3(
+                                x=0.0, y=0.0, z=turning_direction
+                            ),
+                        )
+                        print(
+                            f"Avoiding obstacle: turning to {target_yaw:.2f} rad target_yaw {target_yaw} current_yaw {self.current_pose['yaw_odom_m180_p180']}"
+                        )
+                        self.session.put(f"{self.urid}/c3/cmd_vel", t.serialize())
+                        time.sleep(0.5)
             else:
-                if abs(angle_to_dock) > 0.2:
-                    angular_z = 0.5 if angle_to_dock > 0 else -0.5
-                    t = geometry_msgs.Twist(
-                        linear=geometry_msgs.Vector3(x=0, y=0.0, z=0.0),
-                        angular=geometry_msgs.Vector3(x=0.0, y=0.0, z=angular_z),
-                    )
-                else:
-                    t = geometry_msgs.Twist(
-                        linear=geometry_msgs.Vector3(
-                            x=min(0.3, distance * 0.2), y=0.0, z=0.0
-                        ),
-                        angular=geometry_msgs.Vector3(
-                            x=0.0, y=0.0, z=angle_to_dock * 0.1
-                        ),
-                    )
+                # if abs(angle_to_dock) > 0.2:
+                #     angular_z = max(-0.5, min(0.5, angle_to_dock * 2.0))
+                #     t = geometry_msgs.Twist(
+                #         linear=geometry_msgs.Vector3(x=0, y=0.0, z=0.0),
+                #         angular=geometry_msgs.Vector3(x=0.0, y=0.0, z=angular_z),
+                #     )
+                # else:
+                t = geometry_msgs.Twist(
+                    linear=geometry_msgs.Vector3(
+                        x=min(0.3, self.distance_to_dock * 0.5), y=0.0, z=0.0
+                    ),
+                    angular=geometry_msgs.Vector3(x=0.0, y=0.0, z=0),
+                )
                 print(
-                    f"Moving towards dock: distance={distance:.2f}, angle={angle_to_dock:.2f}"
+                    f"Moving towards dock: distance={self.distance_to_dock:.2f}, angle={self.angle_to_dock:.2f}"
                 )
                 self.session.put(f"{self.urid}/c3/cmd_vel", t.serialize())
 
@@ -253,6 +353,25 @@ if __name__ == "__main__":
     while auto_charge.current_pose is None:
         print("Waiting for odometry data...")
         time.sleep(0.5)
+
+    # target_yaw = auto_charge.avoid_obstacles()
+    # if target_yaw is not None:
+    #     while abs(target_yaw - auto_charge.current_pose["yaw_odom_m180_p180"]) > 5:
+    #         gap = target_yaw - auto_charge.current_pose["yaw_odom_m180_p180"]
+    #         if gap > 180:
+    #             gap -= 360
+    #         elif gap < -180:
+    #             gap += 360
+    #         turning_direction = 0.5 if gap < 0 else -0.5
+    #         t = geometry_msgs.Twist(
+    #             linear=geometry_msgs.Vector3(x=0, y=0.0, z=0.0),
+    #             angular=geometry_msgs.Vector3(
+    #                 x=0.0, y=0.0, z=turning_direction
+    #             ),
+    #         )
+    #         print(f"Avoiding obstacle: turning to {target_yaw:.2f} rad target_yaw {target_yaw} current_yaw {auto_charge.current_pose['yaw_odom_m180_p180']}")
+    #         auto_charge.session.put(f"{auto_charge.urid}/c3/cmd_vel", t.serialize())
+    #         time.sleep(0.5)
 
     auto_charge.start_navigation_to_dock()
 
