@@ -220,23 +220,6 @@ def distance_point_to_line_segment(px, py, x1, y1, x2, y2):
     return math.sqrt((px - closest_x) ** 2 + (py - closest_y) ** 2)
 
 
-def point_angle_from_origin(x, y):
-    angle_rad = math.atan2(x, y)  # atan2(x, y) because 0° is positive y direction
-    angle_deg = math.degrees(angle_rad)
-    return angle_deg
-
-
-def is_point_in_path_angular_range(px, py, path_angle, angular_tolerance=10):
-    point_angle = point_angle_from_origin(px, py)
-
-    # Calculate angular difference, handling wraparound
-    angle_diff = abs(point_angle - path_angle)
-    if angle_diff > 180:
-        angle_diff = 360 - angle_diff
-
-    return angle_diff <= angular_tolerance
-
-
 def process(data):
 
     complexes = []
@@ -317,14 +300,6 @@ def process(data):
             continue
 
         for apath in possible_paths:
-            path_angle = path_angles[apath]
-
-            # First check if the obstacle is in the angular range of this path
-            if not is_point_in_path_angular_range(
-                x, y, path_angle, angular_tolerance=12
-            ):
-                continue  # Skip this path - obstacle is not in the relevant direction
-
             # Get the start and end points of this straight line path
             path_points = paths[apath]
             start_x, start_y = (
