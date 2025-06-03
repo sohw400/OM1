@@ -45,7 +45,7 @@ def create_straight_line_path_from_angle(angle_degrees, length=1.0, num_points=1
 
 # Define 9 straight line paths separated by 15 degrees
 # Center path is 0° (straight forward), then ±15°, ±30°, ±45°, ±60°
-path_angles = [-60, -45, -30, -15, 0, 15, 30, 45, 60]  # degrees
+path_angles = [-60, -45, -30, -15, 0, 15, 30, 45, 60, 180]  # degrees
 path_length = 1.05  # meters
 
 paths = []
@@ -291,7 +291,7 @@ def process(data):
     """
     Determine set of possible paths using proper line segment collision detection
     """
-    possible_paths = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
+    possible_paths = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
     bad_paths = []
 
     # Check each obstacle point against each path
@@ -325,66 +325,55 @@ def process(data):
     # convert to simple list
     ppl = possible_paths.tolist()
 
-    sharp_left = []
     left = []
-    slight_left = []
     forward = []
-    slight_right = []
     right = []
-    sharp_right = []
+    backward = []
 
     for p in ppl:
         # Categorize paths based on angle
         angle = path_angles[p]
         if angle == -60:
-            sharp_left.append(p)
+            left.append(p)
         elif angle == -45:
             left.append(p)
         elif angle == -30:
             left.append(p)
         elif angle == -15:
-            slight_left.append(p)
+            forward.append(p)
         elif angle == 0:
             forward.append(p)
         elif angle == 15:
-            slight_right.append(p)
+            forward.append(p)
         elif angle == 30:
             right.append(p)
         elif angle == 45:
             right.append(p)
         elif angle == 60:
-            sharp_right.append(p)
+            right.append(p)
+        elif angle == 180:
+            backward.append(p)
 
         lines[p].set_data(paths[p][0], paths[p][1])
         lines[p].set_color("green")
 
     if len(ppl) > 0:
         print(f"There are {len(ppl)} possible paths.")
-        if len(sharp_left) > 0:
-            print(
-                f"You can turn sharp left using path: {sharp_left} ({path_angles[sharp_left[0]]}°)."
-            )
         if len(left) > 0:
             print(
                 f"You can turn left using paths: {left} ({[path_angles[p] for p in left]}°)."
             )
-        if len(slight_left) > 0:
-            print(
-                f"You can turn slight left using path: {slight_left} ({path_angles[slight_left[0]]}°)."
-            )
         if len(forward) > 0:
-            print("You can go forward.")
-        if len(slight_right) > 0:
             print(
-                f"You can turn slight right using path: {slight_right} ({path_angles[slight_right[0]]}°)."
+                f"You can go forward using paths: {forward} ({[path_angles[p] for p in forward]}°)."
             )
         if len(right) > 0:
             print(
                 f"You can turn right using paths: {right} ({[path_angles[p] for p in right]}°)."
             )
-        if len(sharp_right) > 0:
+        if len(backward) > 0:
             print(
-                f"You can turn sharp right using path: {sharp_right} ({path_angles[sharp_right[0]]}°)."
+                f"You can go backward using paths: {backward} ({[path_angles[p] for p in backward]}°)."
             )
     else:
         print(
