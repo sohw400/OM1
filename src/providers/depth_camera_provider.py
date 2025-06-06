@@ -76,43 +76,28 @@ class DepthCameraProvider:
             logger.warning("Depth camera provider already running")
             return
 
-        try:
-            # Check if any RealSense device is connected
-            ctx = rs.context()
-            devices = ctx.query_devices()
-            if len(devices) == 0:
-                raise RuntimeError("No RealSense device connected")
+        # Configure RealSense pipeline
+        self.pipeline = rs.pipeline()
+        self.config = rs.config()
 
-            # Configure RealSense pipeline
-            self.pipeline = rs.pipeline()
-            self.config = rs.config()
+        # Enable depth stream
+        self.config.enable_stream(
+            rs.stream.depth, self.width, self.height, rs.format.z16, self.fps
+        )
 
-            # Enable depth stream
-            self.config.enable_stream(
-                rs.stream.depth, self.width, self.height, rs.format.z16, self.fps
-            )
+        # Start pipeline
+        profile = self.pipeline.start(self.config)
 
-            # Start pipeline
-            profile = self.pipeline.start(self.config)
+        # Get depth sensor
+        depth_sensor = profile.get_device().first_depth_sensor()
+        self.depth_scale = depth_sensor.get_depth_scale()
+        logger.info(f"Depth scale: {self.depth_scale}")
 
-            # Get depth sensor
-            depth_sensor = profile.get_device().first_depth_sensor()
+        self._running = True
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
 
-            # Set depth units (usually 0.001 for mm to m conversion)
-            self.depth_scale = depth_sensor.get_depth_scale()
-            logger.info(f"Depth scale: {self.depth_scale}")
-
-            self._running = True
-            self._thread = threading.Thread(target=self._run, daemon=True)
-            self._thread.start()
-
-            logger.info("Depth camera provider started successfully")
-
-        except Exception as e:
-            logger.error(f"Failed to start depth camera: {e}")
-            self._running = False
-            if self.pipeline:
-                self.pipeline.stop()
+        logger.info("Depth camera provider started successfully")
 
     def stop(self):
         """Stop the depth camera provider."""
@@ -123,10 +108,7 @@ class DepthCameraProvider:
             self._thread.join(timeout=5.0)
 
         if self.pipeline:
-            try:
-                self.pipeline.stop()
-            except Exception as e:
-                logger.debug(f"Error stopping pipeline: {e}")
+            self.pipeline.stop()
 
         logger.info("Depth camera provider stopped")
 
@@ -150,11 +132,10 @@ class DepthCameraProvider:
 
                 # Store frame for external access (thread-safe)
                 with self._lock:
-                    self._depth_frame = depth_image.copy()
+                    self._depth_frame = depth_image
 
             except Exception as e:
-                if self._running:  # Only log if we're supposed to be running
-                    logger.error(f"Error in depth processing loop: {e}")
+                logger.error(f"Error in depth processing loop: {e}")
                 time.sleep(0.1)
 
     def _process_depth_frame(self, depth_image: np.ndarray):
