@@ -1,7 +1,7 @@
 import logging
 import threading
 import time
-from typing import Dict, Optional
+from typing import Optional
 
 import numpy as np
 import pyrealsense2 as rs
@@ -22,8 +22,6 @@ class DepthCameraProvider:
     def __init__(
         self,
         depth_threshold: float = 0.3,  # Minimum safe distance in meters
-        detection_width: float = 0.5,  # Width of detection area in meters
-        detection_length: float = 0.6,  # Length of detection area in meters
         fps: int = 15,
         width: int = 640,
         height: int = 480,
@@ -32,15 +30,11 @@ class DepthCameraProvider:
 
         Args:
             depth_threshold: Minimum safe distance to ground/obstacles in meters
-            detection_width: Width of the detection area in meters
-            detection_length: Length of the detection area in meters
             fps: Frames per second for the depth camera
             width: Width of the depth image
             height: Height of the depth image
         """
         self.depth_threshold = depth_threshold
-        self.detection_width = detection_width
-        self.detection_length = detection_length
         self.fps = fps
         self.width = width
         self.height = height
@@ -53,22 +47,12 @@ class DepthCameraProvider:
         # Thread management
         self._thread = None
         self._running = False
-        self._lock = threading.Lock()  # Thread safety for shared state
+        self._lock = threading.Lock()
 
         # Obstacle detection results
         self._obstacle_detected = False
-        self._safe_direction = "forward"
-        self._obstacle_info = ""
+        self._min_distance = None
         self._depth_frame = None
-
-        # Detection zones (relative to image center)
-        self._zones = {
-            "center": {"detected": False, "distance": None},
-            "left": {"detected": False, "distance": None},
-            "right": {"detected": False, "distance": None},
-            "front": {"detected": False, "distance": None},
-            "back": {"detected": False, "distance": None},
-        }
 
     def start(self):
         """Start the depth camera provider."""
@@ -130,7 +114,7 @@ class DepthCameraProvider:
                 # Process depth data
                 self._process_depth_frame(depth_image)
 
-                # Store frame for external access (thread-safe)
+                # Store frame for external access
                 with self._lock:
                     self._depth_frame = depth_image
 
@@ -144,167 +128,36 @@ class DepthCameraProvider:
         Args:
             depth_image: Depth image as numpy array (values in mm)
         """
-        # Convert depth values from mm to meters using sensor's depth scale
+        # Convert depth values from mm to meters
         depth_m = depth_image * self.depth_scale
 
-        # Get image dimensions
-        h, w = depth_image.shape
+        # Filter valid depth values (ignore 0 values which mean no reading)
+        valid_depths = depth_m[depth_m > 0]
 
-        # Define detection zones (5 zones: center, left, right, front, back)
-        zone_width = w // 3
-        zone_height = h // 3
+        if len(valid_depths) > 0:
+            # Get minimum distance
+            min_distance = np.min(valid_depths)
 
-        zones_config = {
-            "center": (zone_width, zone_width * 2, zone_height, zone_height * 2),
-            "left": (0, zone_width, zone_height, zone_height * 2),
-            "right": (zone_width * 2, w, zone_height, zone_height * 2),
-            "front": (zone_width, zone_width * 2, 0, zone_height),
-            "back": (zone_width, zone_width * 2, zone_height * 2, h),
-        }
-
-        # Analyze each zone
-        obstacle_in_any_zone = False
-        obstacles = []
-
-        for zone_name, (x1, x2, y1, y2) in zones_config.items():
-            # Extract zone
-            zone = depth_m[y1:y2, x1:x2]
-
-            # Filter valid depth values (ignore 0 values which mean no reading)
-            valid_depths = zone[zone > 0]
-
-            if len(valid_depths) > 0:
-                # Get minimum distance in zone
-                min_distance = np.min(valid_depths)
-
-                # Check if obstacle detected
-                if min_distance < self.depth_threshold:
-                    zone_update = {"detected": True, "distance": min_distance}
-                    obstacle_in_any_zone = True
-                    obstacles.append(f"{zone_name}: {min_distance:.2f}m")
-                else:
-                    zone_update = {"detected": False, "distance": min_distance}
-            else:
-                zone_update = {"detected": False, "distance": None}
-
-            # Thread-safe update
+            # Update detection status
             with self._lock:
-                self._zones[zone_name].update(zone_update)
-
-        # Update obstacle detection status and other shared state
-        with self._lock:
-            self._obstacle_detected = obstacle_in_any_zone
-
-            # Determine safe direction based on obstacles
-            self._determine_safe_direction()
-
-            # Update obstacle info string
-            if obstacles:
-                self._obstacle_info = f"Obstacles detected at: {', '.join(obstacles)}"
-            else:
-                self._obstacle_info = "Path clear"
-
-    def _determine_safe_direction(self):
-        """Determine the safest direction to move based on obstacle zones."""
-        center = self._zones["center"]["detected"]
-        left = self._zones["left"]["detected"]
-        right = self._zones["right"]["detected"]
-        front = self._zones["front"]["detected"]
-        back = self._zones["back"]["detected"]
-
-        # Decision logic for safe direction
-        if not center and not front:
-            # Clear ahead
-            self._safe_direction = "forward"
-        elif center or front:
-            # Obstacle ahead, check sides
-            if not left and not right:
-                # Both sides clear, prefer slight turn
-                self._safe_direction = "turn_left"
-            elif not left:
-                self._safe_direction = "turn_left"
-            elif not right:
-                self._safe_direction = "turn_right"
-            elif back:
-                # Front and sides blocked, but back has obstacle too
-                self._safe_direction = "retreat"  # Still retreat but carefully
-            else:
-                # All directions blocked, retreat
-                self._safe_direction = "retreat"
-        elif left and not right:
-            self._safe_direction = "turn_right"
-        elif right and not left:
-            self._safe_direction = "turn_left"
-        elif back and not center and not front:
-            # Only back has obstacle, safe to go forward
-            self._safe_direction = "forward"
+                self._obstacle_detected = min_distance < self.depth_threshold
+                self._min_distance = min_distance
         else:
-            # Default to retreat if confused
-            self._safe_direction = "retreat"
+            with self._lock:
+                self._obstacle_detected = False
+                self._min_distance = None
 
     @property
     def obstacle_detected(self) -> bool:
-        """Check if any obstacle is detected."""
+        """Check if any obstacle is detected below the threshold."""
         with self._lock:
             return self._obstacle_detected
 
     @property
-    def safe_direction(self) -> str:
-        """Get the recommended safe direction to move."""
+    def min_distance(self) -> Optional[float]:
+        """Get minimum distance to obstacle in meters."""
         with self._lock:
-            return self._safe_direction
-
-    @property
-    def obstacle_info(self) -> str:
-        """Get human-readable obstacle information."""
-        with self._lock:
-            return self._obstacle_info
-
-    @property
-    def movement_options(self) -> Dict[str, bool]:
-        """Get movement options similar to lidar provider format."""
-        with self._lock:
-            return {
-                "turn_left": self._safe_direction == "turn_left"
-                or not self._zones["left"]["detected"],
-                "advance": self._safe_direction == "forward",
-                "turn_right": self._safe_direction == "turn_right"
-                or not self._zones["right"]["detected"],
-                "retreat": self._safe_direction == "retreat",
-            }
-
-    @property
-    def obstacle_string(self) -> str:
-        """Get obstacle description for LLM consumption."""
-        with self._lock:
-            if not self._obstacle_detected:
-                return "Ground surface clear, safe to proceed forward"
-
-            # Build detailed description
-            parts = []
-            for zone, data in self._zones.items():
-                if data["detected"]:
-                    parts.append(f"{zone} ({data['distance']:.2f}m)")
-
-            obstacle_desc = f"Obstacles detected below: {', '.join(parts)}. "
-
-            # Add movement recommendation
-            if self._safe_direction == "forward":
-                obstacle_desc += "Safe to move forward."
-            elif self._safe_direction == "turn_left":
-                obstacle_desc += "Recommend turning left."
-            elif self._safe_direction == "turn_right":
-                obstacle_desc += "Recommend turning right."
-            elif self._safe_direction == "retreat":
-                obstacle_desc += "Recommend moving backward."
-
-            return obstacle_desc
-
-    @property
-    def zones(self) -> Dict:
-        """Get detailed zone information."""
-        with self._lock:
-            return self._zones.copy()
+            return self._min_distance
 
     @property
     def is_running(self) -> bool:
@@ -313,6 +166,6 @@ class DepthCameraProvider:
 
     @property
     def depth_frame(self) -> Optional[np.ndarray]:
-        """Get the latest depth frame (thread-safe copy)."""
+        """Get the latest depth frame."""
         with self._lock:
             return self._depth_frame.copy() if self._depth_frame is not None else None
