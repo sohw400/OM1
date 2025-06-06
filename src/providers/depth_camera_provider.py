@@ -38,20 +38,6 @@ class DepthCameraProvider:
             width: Width of the depth image
             height: Height of the depth image
         """
-        # Validate parameters
-        if depth_threshold <= 0:
-            raise ValueError("depth_threshold must be positive")
-        if detection_width <= 0:
-            raise ValueError("detection_width must be positive")
-        if detection_length <= 0:
-            raise ValueError("detection_length must be positive")
-        if fps <= 0:
-            raise ValueError("fps must be positive")
-        if width <= 0 or width < 3:
-            raise ValueError("width must be at least 3")
-        if height <= 0 or height < 3:
-            raise ValueError("height must be at least 3")
-
         self.depth_threshold = depth_threshold
         self.detection_width = detection_width
         self.detection_length = detection_length
