@@ -170,17 +170,16 @@ class RFmapper(Background):
                         except Exception as e:
                             logging.error(f"Error parsing GPS: {e}")
 
-                        if hasattr(self.odom, "running"):
-                            try:
-                                o = self.odom.odom
-                                logging.debug(f"Odom data: {o}")
-                                if o:
-                                    self.x = o["x"]
-                                    self.y = o["y"]
-                                    self.yaw_odom_0_360 = o["yaw_odom_0_360"]
-                                    self.yaw_odom_m180_p180 = o["yaw_odom_m180_p180"]
-                            except Exception as e:
-                                logging.error(f"Error parsing Odom: {e}")
+                        try:
+                            o = self.odom
+                            logging.debug(f"Odom data: {o}")
+                            if o:
+                                self.x = o.x
+                                self.y = o.y
+                                self.yaw_odom_0_360 = o.yaw_odom_0_360
+                                self.yaw_odom_m180_p180 = o.yaw_odom_m180_p180
+                        except Exception as e:
+                            logging.error(f"Error parsing Odom: {e}")
 
                         if hasattr(self.rtk, "running"):
                             try:
