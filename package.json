@@ -1,0 +1,44 @@
+{
+  "name": "om1",
+  "version": "1.0.0",
+  "description": "![OM_Banner_X2 (1)](https://github.com/user-attachments/assets/853153b7-351a-433d-9e1a-d257b781f93c)",
+  "main": "index.js",
+  "type": "module",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "bin": {
+    "openmind": "./bin/openmind"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "cli": "tsx src/cli.tsx",
+    "build": "tsc",
+    "start": "node dist/cli.js",
+    "setup": "npm install && npm link",
+    "openmind": "./bin/openmind",
+    "postinstall": "chmod +x bin/openmind"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OpenmindAGI/OM1.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/OpenmindAGI/OM1/issues"
+  },
+  "homepage": "https://github.com/OpenmindAGI/OM1#readme",
+  "dependencies": {
+    "@types/node": "^22.15.30",
+    "@types/react": "^19.1.6",
+    "dotenv": "^16.5.0",
+    "ink": "^6.0.0",
+    "ink-text-input": "^6.0.0",
+    "react": "^19.1.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}
