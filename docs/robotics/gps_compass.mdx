@@ -94,6 +94,12 @@ ls /dev/cu.*
 ```
 It should be something similar to `/dev/cu.usbmodem8401`.
 
+### Testing
+
+```bash
+uv run src/run.py test_gps
+```
+
 ### RTCM / RTK Precision GPS
 
 An RTK GPS system can provide centimeter accuracy localization. In a typical setup, an RTK-compatible GPS receiver (such as the [u-blox ZED-F9P/simpleRTK2B](https://www.ardusimple.com/product/simplertk2b/) accepts `RTCM` messages over XBee or the internet, and uses those data to correct (and greatly improve) its location estimate. The `simpleRTK2B` has two usb ports, one labeled `power + GPS` and the other `power + XBee`. The first port provides a full set of NEMA and UBX messages, including GPGGA, GNRMC, GNGLL, and UBX(NAV-PVT). The `power + XBee` port provides direct access to received RTK correction messages, such as `1005` and `1074`. In standard usage, a rover would use the NEMA messages to track its location whilst monitoring the status, mode, and quality fields. 

@@ -70,7 +70,7 @@ class MockVLM_COCO(VLM_COCO_Local):
         Optional[np.ndarray]
             Next test image as a numpy array (OpenCV format), or None if no more images
         """
-        await asyncio.sleep(0.01)  # Small delay to simulate real polling
+        await asyncio.sleep(0.1)  # Small delay to simulate real polling
         logging.info("MockVLM_COCO: Polling for image")
 
         # Get the next image from the central provider

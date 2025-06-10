@@ -3,15 +3,39 @@ title: RF Mapping
 description: "Rf Mapping"
 ---
 
-## Testing
+## Testing the Low Level Mac BLE scan
 
+In `system_hw_test`:
+
+```bash
+uv uv run ble.py 
 ```
+
+## Testing the BLE Scan
+
+Test host computer BLE scan and data storage to local file:
+
+```bash
+uv run src/run.py test_ble
+```
+
+## Testing the BLE scan plus Arduino BLE/GPS
+
+Host computer BLE scan plus Arduino based GPS and BLE:
+
+```bash
+uv run src/run.py test_ble_gps
+```
+
+## Testing the Entire Solution
+
+Combines autonomy, VILA, two BLE sources, GPS, odometry, and enhanced GPS:
+
+```bash
 uv run src/run.py test_rfmapper
 ```
 
-You should see a list of nearby BLE sources, such as BLE Beacons.
-
-The system will write location and RF data to file, and, if possible, to a cloud endpoint. 
+You should see a list of nearby BLE sources, such as BLE Beacons. The system will write location and RF data to file, and, if possible, to a cloud endpoint. 
 
 ## Example Data
 

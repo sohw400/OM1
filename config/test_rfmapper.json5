@@ -11,6 +11,9 @@
     {
       "type": "VLMVila"
     },
+    {
+      "type": "UnitreeGo2Battery"
+    },
     //{
     //  "type": "GoogleASRInput"
     //},
@@ -53,7 +56,7 @@
     "type": "OpenAILLM",
     "config": {
       "agent_name": "Spot",
-      "history_length": 0
+      "history_length": 2
     }
   },
   "agent_actions": [

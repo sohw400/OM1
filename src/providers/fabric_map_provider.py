@@ -30,8 +30,9 @@ class RFData:
 
     timestamp: float
     address: str
-    name: str
+    name: str | None
     rssi: int
+    tx_power: int | None
     service_uuid: str
     mfgkey: str
     mfgval: str
@@ -50,9 +51,49 @@ class RFData:
             "address": self.address,
             "name": self.name,
             "rssi": self.rssi,
+            "tx_power": self.tx_power,
             "service_uuid": self.service_uuid,
             "mfgkey": self.mfgkey,
             "mfgval": self.mfgval,
+        }
+
+
+@dataclass
+class RFDataRaw:
+    """
+    Data class to represent RF scan results.
+
+    Parameters
+    ----------
+    timestamp : float
+        Unix timestamp of the scan.
+    address : str
+        Bluetooth address of the device.
+    name : str
+        Name of the device.
+    rssi : int
+        Received Signal Strength Indicator of the device.
+    """
+
+    timestamp: str
+    address: str
+    rssi: int
+    packet: str
+
+    def to_dict(self) -> dict:
+        """
+        Convert the RFData object to a dictionary.
+
+        Returns
+        -------
+        dict
+            Dictionary representation of the RFData object.
+        """
+        return {
+            "timestamp": self.timestamp,
+            "address": self.address,
+            "rssi": self.rssi,
+            "packet": self.packet,
         }
 
 
@@ -79,6 +120,7 @@ class FabricData:
     yaw_odom_0_360: float
     yaw_odom_m180_p180: float
     rf_data: List[RFData]
+    rf_data_raw: List[RFDataRaw]
 
     def to_dict(self) -> dict:
         """
@@ -107,6 +149,9 @@ class FabricData:
             "yaw_odom_0_360": self.yaw_odom_0_360,
             "yaw_odom_m180_p180": self.yaw_odom_m180_p180,
             "rf_data": [rf.to_dict() for rf in self.rf_data] if self.rf_data else [],
+            "rf_data_raw": (
+                [rf.to_dict() for rf in self.rf_data_raw] if self.rf_data_raw else []
+            ),
         }
 
 
@@ -180,7 +225,7 @@ class FabricDataSubmitter:
             The data to be shared.
         """
 
-        # logging.info(f"prepare data: {data}")
+        logging.info(f"_share_data_worker: {data}")
         try:
             json_dict = data.to_dict()
         except Exception as e:

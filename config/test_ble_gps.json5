@@ -3,6 +3,7 @@
   "name": "bits",
   "unitree_ethernet": "en0",
   "api_key": "openmind_free",
+  "URID": "om1_qwertyui",
   "system_prompt_base": "You are a smart, curious, and friendly dog. Your name is Bits.",
   "system_governance": "",
   "system_prompt_examples": "",
@@ -10,7 +11,7 @@
     {
       "type": "Gps",
       config: {
-        "serial_port": "/dev/cu.usbmodem84401",
+        "serial_port": "/dev/cu.usbmodem84301",
         "silent": false // set to true to just spin up the provider
       }
     }
@@ -23,5 +24,10 @@
     }
   },
   "agent_actions": [
+  ],
+  "backgrounds": [
+    {
+        "type": "RFmapper",
+    }
   ]
 }
