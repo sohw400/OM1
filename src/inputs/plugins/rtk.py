@@ -37,8 +37,6 @@ class Rtk(FuserInput[str]):
         super().__init__(config)
 
         port = getattr(config, "serial_port", None)
-        self.silent = getattr(config, "silent", False)
-
         logging.info(f"RTK Provider: {port}")
 
         self.rtk = RtkProvider(serial_port=port)
@@ -59,9 +57,6 @@ class Rtk(FuserInput[str]):
             The next message from the buffer if available, None otherwise
         """
         await asyncio.sleep(0.5)
-
-        if self.silent:
-            return None
 
         try:
             return self.rtk.data

@@ -17,7 +17,7 @@ class MockSensor(Sensor):
 class MockAction:
     name: str
     llm_label: str = None
-    silent: bool = False
+    exclude_from_prompt: bool = False
 
 
 @dataclass

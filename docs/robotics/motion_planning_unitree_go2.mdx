@@ -12,12 +12,12 @@ The autonomous exploration capability requires a laserscan sensor to be mounted 
 Using OM1, the Unitree Go2 is able to autonomously explore spaces such as your home. There are several parts to this capability. To get started, launch OM1:
 
 ```bash Run OM1
-uv run src/run.py unitree_go2_lidar
+uv run src/run.py unitree_go2_autonomy
 ```
 
 ### RPLIDAR Laserscan Data
 
-OM1 uses the RPLIDAR to tell the core LLMs about nearby objects. This information flows as natural language to the core LLMs from `/input/plugins/rplidar.py`. The LIDAR data are also used in the action driver to check for viable paths before and during motions are executed. 
+OM1 uses the RPLIDAR to tell the core LLMs about nearby objects. This information flows as natural language to the core LLMs. The LIDAR data are also used in the action driver to check for viable paths before and during motions are executed. 
 
 ### Core LLM Directed Motion
 
@@ -30,27 +30,26 @@ Depending on the sensed spatial environment, the core LLMs can generate contextu
   MOVE_FORWARDS = "move forwards"
   STAND_STILL = "stand still"
 ```
-These commands are defined in `actions/move_safe_lidar/interface.py` and are converted to motions in `/actions/move_safe_lidar/connector/ros2.py`.
 
 ## Data Priorities
 
-### Normal case
+### Normal Case
 
 * The LIDAR does not sense anything in proximity (within 1.1m or closer).
 
 In this case, the Go2 moves about the room controlled by the core LLMs. 
 
-### Object nearby possible moves are constrained
+### Object Nearby - Possible Moves are Constrained
 
 The LIDAR senses something within 1.1 m (or less) and uses that information to tell the core LLMs about which paths are possible. For example, the LIDAR may tell the core LLMS that:
 
-```
+```bash
 Here is information about objects and walls around you. Use this information to plan your movements and avoid bumping into things: The safe movement choices are: You can turn left. You can turn right. 
 ```
 
 If all directions are blocked, the LIDAR tells the LLMs that:
 
-```
+```bash
 You are surrounded by objects and cannot safely move in any direction. DO NOT MOVE.
 ```
 

@@ -81,4 +81,4 @@ class AgentAction:
     interface: T.Type[Interface]
     implementation: ActionImplementation
     connector: ActionConnector
-    silent: bool
+    exclude_from_prompt: bool

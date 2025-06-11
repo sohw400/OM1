@@ -1,6 +1,6 @@
 {
   "hertz": 1,
-  "name": "spot_background",
+  "name": "bits_mapper",
   "api_key": "openmind_free",
   "URID": "om1_qwertyui",
   "unitree_ethernet": "en0",
@@ -21,14 +21,12 @@
       "type": "Gps",
       config: {
         "serial_port": "/dev/cu.usbmodem101",
-        "silent": false // set to true to just spin up the provider
       }
     },
     {
       "type": "Rtk",
       config: {
         "serial_port": "/dev/cu.usbmodem21201",
-        "silent": false // set to true to just spin up the provider
       }
     },
     {
@@ -36,7 +34,6 @@
         "config": {
           "use_zenoh": false,
           "URID": "",     // only needed for Zenoh
-          "silent": false // set to true to just spin up the provider
         }
     },
     {
@@ -48,7 +45,6 @@
         "sensor_mounting_angle": 172.0,
         //"angles_blanked": [[-180.0, -170.0], [160, 180]],
         "angles_blanked": [[-180.0, -140.0], [140, 180]],
-        "silent": false
       }
     }
   ],
@@ -65,7 +61,7 @@
       "llm_label": "external movement controller",
       "implementation": "passthrough",
       "connector": "go2_game_controller",
-      "silent": true
+      "exclude_from_prompt": true
     },
     {
       "name": "move_go2_autonomy",

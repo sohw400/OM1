@@ -3,15 +3,6 @@ title: RPLidar A1M8 Setup and Use
 description: "RPLidar A1M8 Setup and Use"
 ---
 
-- [RPLidar](#rplidar)
-- [Architecture](#architecture)
-- [Assumptions](#assumptions)
-- [Setup](#setup)
-  * [How to determine the sensor_mounting_angle and the angles_blanked](#how-to-determine-the-sensor-mounting-angle-and-the-angles-blanked)
-- [Unitree RPLidar](#unitree-rplidar)
-- [TurtleBot4](#turtlebot4)
-- [Using the RPLidar A1M8 in OM1](#using-the-rplidar-a1m8-in-om1)
-
 ## RPLidar
 
 These instructions are for an SLAMTEC RPLIDAR A1M8. This unit is used on the TurtleBot4 and can be added to the Unitree Go2. 
@@ -26,7 +17,7 @@ The code assumes that any unpredictable barriers (e.g. humans crossing the path 
 
 ## Setup
 
-Run `rptest.py` (located in `system_hw_test`) to determine the `sensor_mounting_angle` and the `angles_blanked`. These values depend on how you mounted the sensor and the radial position of any fixed obstructions, such as mounting brackets. You can figure out which value to use for your system by changing these values as needed:
+Run `rptest.py` (located in `system_hw_test`) to determine the `sensor_mounting_angle` and the `angles_blanked`. These values depend on how you mounted the sensor and the radial position of any fixed obstructions, such as mounting brackets.
 
 ```py
 """
@@ -40,7 +31,7 @@ angles_blanked = [[-180.0, -160.0], [32.0, 46.6]]
 
 ### How to determine the sensor_mounting_angle and the angles_blanked
 
-- `sensor_mounting_angle`: The `sensor_mounting_angle` refers to the angle between the LIDAR sensor's scanning plane and the horizontal plane of your robot or platform. This parameter is crucial for accurately interpreting the sensor's data within your system's coordinate framework. The `sensor_mounting_angle` can be read physically from the LIDAR. Refer to the following image for guidance:  
+- `sensor_mounting_angle`: The `sensor_mounting_angle` refers to the angle between the LIDAR sensor's scanning plane and the horizontal plane of your robot or platform. The `sensor_mounting_angle` can be read physically from the LIDAR. Refer to the following image for guidance:  
 
 ![sensor_mounting_angle](/docs/assets/lidar_angle.png)  
 

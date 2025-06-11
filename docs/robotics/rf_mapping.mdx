@@ -8,7 +8,7 @@ description: "Rf Mapping"
 In `system_hw_test`:
 
 ```bash
-uv uv run ble.py 
+uv run ble.py 
 ```
 
 ## Testing the BLE Scan
@@ -32,7 +32,7 @@ uv run src/run.py test_ble_gps
 Combines autonomy, VILA, two BLE sources, GPS, odometry, and enhanced GPS:
 
 ```bash
-uv run src/run.py test_rfmapper
+uv run src/run.py unitree_go2_mapper
 ```
 
 You should see a list of nearby BLE sources, such as BLE Beacons. The system will write location and RF data to file, and, if possible, to a cloud endpoint. 

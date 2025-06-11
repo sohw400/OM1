@@ -50,9 +50,6 @@ class RPLidar(FuserInput[str]):
 
         logging.info(f"Config: {self.config}")
 
-        # Extract configuration parameters
-        self.silent = getattr(config, "silent", False)
-
         # Build lidar configuration from config
         lidar_config = self._extract_lidar_config(config)
 
@@ -76,9 +73,6 @@ class RPLidar(FuserInput[str]):
             The next message from the buffer if available, None otherwise
         """
         await asyncio.sleep(0.2)
-
-        if self.silent:
-            return None
 
         try:
             return self.lidar.lidar_string

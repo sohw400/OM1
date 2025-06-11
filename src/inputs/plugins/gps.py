@@ -37,7 +37,6 @@ class Gps(FuserInput[str]):
         super().__init__(config)
 
         port = getattr(config, "serial_port", None)
-        self.silent = getattr(config, "silent", False)
 
         self.gps = GpsProvider(serial_port=port)
         self.io_provider = IOProvider()
@@ -57,9 +56,6 @@ class Gps(FuserInput[str]):
             The next message from the buffer if available, None otherwise
         """
         await asyncio.sleep(0.5)
-
-        if self.silent:
-            return None
 
         try:
             return self.gps.data

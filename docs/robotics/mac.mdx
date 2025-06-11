@@ -7,16 +7,27 @@ description: "Apple Mac for Robotics"
 
 For the Mac Mini, add a 12V input to the power rail. You can figure this out yourself, or, find instructions on YouTube.
 
-## Apple Remote Desktop
+## Apple Remote Desktop (ARD)
 
 Apple Remote Desktop is a good solution for developing, except that the audio is routed to your development computer and there is no good way to unmute the sound when you stop ARD.
 
-**Solution** - Stop RD, and then connect via SSH, and run the "test_audio_mac.py" script to unmute after stopping RD. 
+**Solution 1** Stop ARD completely, connect via SSH, and in `system_hw_test`, run:
 
-**Update** - the Mac will automatically unmute the default audio device once the ARD session is terminated.
+```bash
+uv run test_audio_mac.py
+```
+
+**Solution 2** Stop ARD completely, connect via SSH, and run:
+
+```bash
+osascript -e 'set volume without output muted'
+osascript -e 'set volume output volume 20' # adjust int to whatever value you want
+```
+
+**Solution 3** The Mac _should_ automatically unmute the default audio device once the ARD session is terminated.
 
 ## FileVault / Auto Connect to Wifi
 
 FileVault blocks auto connect to WiFi, making it impossible to remote connect to your Mac after it boots (unless you have a screen/keyboard connected to it).
 
-**Solution** - turn off FileVault, or, do not provide AppleID credentials, in which case FileVault will be off by default. 
+**Solution** Turn off FileVault, or, do not provide AppleID credentials, in which case FileVault will be off by default.

@@ -1,0 +1,18 @@
+import logging
+
+from backgrounds.base import Background, BackgroundConfig
+from providers.gps_provider import GpsProvider
+
+
+class Gps(Background):
+    """
+    Reads GPS and Magnetometer data from GPS provider.
+    """
+
+    def __init__(self, config: BackgroundConfig = BackgroundConfig()):
+        super().__init__(config)
+
+        port = getattr(config, "serial_port", None)
+
+        self.gps_provider = GpsProvider(serial_port=port)
+        logging.info("Initiated GPS Provider in background")
