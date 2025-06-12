@@ -133,8 +133,6 @@ class MoveUnitreeSDKConnector(ActionConnector[MoveInput]):
         """
         Cleanly abort current movement and reset state.
         """
-        if self.sport_client:
-            self.sport_client.StopMove()
         self.movement_attempts = 0
         if not self.pending_movements.empty():
             self.pending_movements.get()

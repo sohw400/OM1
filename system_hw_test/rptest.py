@@ -258,6 +258,10 @@ def process(data):
                 keep = False
                 break
 
+        if d_m < relevant_distance_min:
+            # this is too close, disregard
+            keep = False
+
         # the final data ready to use for path planning
         if keep:
             complexes.append([x, y, angle, d_m])

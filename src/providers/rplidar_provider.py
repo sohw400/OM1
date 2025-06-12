@@ -11,6 +11,7 @@ import numpy as np
 import zenoh
 from numpy.typing import NDArray
 
+from runtime.logging import setup_logging
 from zenoh_idl import sensor_msgs
 from zenoh_idl.sensor_msgs import LaserScan
 
@@ -59,65 +60,62 @@ def RPLidar_processor(
     config : Dict
         Configuration dictionary containing parameters for the RPLidar.
     """
-    try:
-        lidar = RPDriver(serial_port)
+    setup_logging("rplidar_processor")
 
-        info = lidar.get_info()
-        logging.info(f"RPLidar Info: {info}")
+    running = True
 
-        health = lidar.get_health()
-        logging.info(f"RPLidar Health: {health[0]}")
+    while running:
+        lidar = None
+        try:
+            lidar = RPDriver(serial_port)
 
-        if health[0] != "Good":
-            logging.error(f"There is a problem with the LIDAR: {health[0]}")
+            info = lidar.get_info()
+            logging.info(f"RPLidar Info: {info}")
 
-        lidar.reset()
-        time.sleep(0.5)
+            health = lidar.get_health()
+            logging.info(f"RPLidar Health: {health[0]}")
 
-        running = True
-        while running:
-            try:
-                cmd = control_queue.get_nowait()
-                if cmd == "STOP":
-                    running = False
-                    break
-            except Empty:
-                pass
+            if health[0] != "Good":
+                logging.error(f"There is a problem with the LIDAR: {health[0]}")
+                time.sleep(0.5)
+                continue
 
-            try:
-                scan = lidar.iter_scans_local(
-                    scan_type="express",
-                    max_buf_meas=config.max_buf_meas,
-                    min_len=config.min_len,
-                    max_distance_mm=config.max_distance_mm,
-                )
-                for scan_data in scan:
+            lidar.reset()
+            time.sleep(0.5)
+
+            scan = lidar.iter_scans_local(
+                scan_type="express",
+                max_buf_meas=config.max_buf_meas,
+                min_len=config.min_len,
+                max_distance_mm=config.max_distance_mm,
+            )
+
+            for scan_data in scan:
+                try:
+                    cmd = control_queue.get_nowait()
+                    if cmd == "STOP":
+                        running = False
+                        break
+                except Empty:
+                    pass
+
+                try:
+                    data_queue.put_nowait(scan_data)
+                except Full:
                     try:
-                        data_queue.put_nowait(scan_data)
-                    except Full:
                         data_queue.get_nowait()
                         data_queue.put_nowait(scan_data)
                     except Empty:
                         pass
 
-                    try:
-                        cmd = control_queue.get_nowait()
-                        if cmd == "STOP":
-                            running = False
-                            break
-                    except Empty:
-                        pass
-            except Exception:
-                time.sleep(0.5)
-    except Exception as e:
-        logging.error(f"Error in RPLidar processor: {e}")
-    finally:
-        try:
-            lidar.stop()
-            time.sleep(0.5)
-            lidar.disconnect()
         except Exception as e:
-            logging.error(f"Error stopping RPLidar: {e}")
+            logging.error(f"Error in RPLidar processor: {e}")
+            if lidar:
+                try:
+                    lidar.reset()
+                except Exception:
+                    pass
+            time.sleep(0.5)
 
 
 @singleton
@@ -353,6 +351,11 @@ class RPLidarProvider:
                     # disregard
                     reflection = True
                     break
+
+            if d_m < self.relevant_distance_min:
+                # this is a permanent robot reflection
+                # disregard
+                reflection = True
 
             if reflection:
                 continue

@@ -33,6 +33,7 @@ class LLMConfig(BaseModel):
     base_url: T.Optional[str] = None
     api_key: T.Optional[str] = None
     model: T.Optional[str] = None
+    timeout: T.Optional[int] = 10
     agent_name: T.Optional[str] = "IRIS"
     history_length: T.Optional[int] = 0
     extra_params: T.Dict[str, T.Any] = Field(default_factory=dict)

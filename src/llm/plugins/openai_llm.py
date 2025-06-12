@@ -87,6 +87,7 @@ class OpenAILLM(LLM[R]):
                 model=self._config.model,
                 messages=[*messages, {"role": "user", "content": prompt}],
                 response_format=self._output_model,
+                timeout=self._config.timeout,
             )
 
             message_content = response.choices[0].message.content

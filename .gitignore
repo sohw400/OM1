@@ -28,4 +28,7 @@ turtlebot.jpg
 config/iris_ai.json
 launch.sh
 
+# Logs
+logs/
+
 *.jsonl

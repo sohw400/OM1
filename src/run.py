@@ -1,18 +1,18 @@
 import asyncio
-import logging
 
 import dotenv
 import typer
 
 from runtime.config import load_config
 from runtime.cortex import CortexRuntime
+from runtime.logging import setup_logging
 
 app = typer.Typer()
 
 
 @app.command()
-def start(config_name: str, debug: bool = False) -> None:
-    logging.basicConfig(level=logging.DEBUG if debug else logging.INFO)
+def start(config_name: str, debug: bool = False, log_to_file: bool = False) -> None:
+    setup_logging(config_name, debug, log_to_file)
 
     # Load configuration
     config = load_config(config_name)

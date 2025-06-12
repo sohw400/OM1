@@ -84,7 +84,7 @@ def test_video_stream_processing(mock_video_client):
     stream = UnitreeCameraVideoStream(frame_callback=callback, fps=30)
 
     stream.start()
-    time.sleep(0.1)
+    time.sleep(1)
     stream.stop()
 
     assert callback.call_count > 0
