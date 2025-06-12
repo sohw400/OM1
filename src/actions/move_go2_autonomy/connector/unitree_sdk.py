@@ -198,15 +198,13 @@ class MoveUnitreeSDKConnector(ActionConnector[MoveInput]):
                     logging.info(f"Phase 1 - Turn GAP delta: {progress}DEG")
 
                 if abs(gap) > 10.0:
-                    logging.debug("Phase 1 - gap is big, using large displacements")
+                    logging.debug("Phase 1 - Gap is big, using large displacements")
                     self.movement_attempts += 1
                     if not self._execute_turn(gap):
                         self.clean_abort()
                         return
                 elif abs(gap) > self.angle_tolerance and abs(gap) <= 10.0:
-                    logging.debug(
-                        "Phase 1 - gap is getting smaller, using smaller steps"
-                    )
+                    logging.debug("Phase 1 - Gap is decreasing, using smaller steps")
                     self.movement_attempts += 1
                     # rotate only because we are so close
                     # no need to check barriers because we are just performing small rotations
@@ -215,14 +213,17 @@ class MoveUnitreeSDKConnector(ActionConnector[MoveInput]):
                     elif gap < 0:
                         self._move_robot(0, 0, -0.2)
                 elif abs(gap) <= self.angle_tolerance:
-                    logging.info(
-                        "Phase 1 - Turn phase completed, starting movement phase"
-                    )
+                    logging.info("Phase 1 - Turn completed, starting movement")
                     current_target.turn_complete = True
                     self.gap_previous = 0
 
             else:
-                # Phase 2: Move towards the target position
+                # Phase 2: Move towards the target position, if needed
+                if goal_dx == 0:
+                    logging.info("No movement required, processing next AI command")
+                    self.clean_abort()
+                    return
+
                 s_x = current_target.start_x
                 s_y = current_target.start_y
                 distance_traveled = math.sqrt(
@@ -232,6 +233,7 @@ class MoveUnitreeSDKConnector(ActionConnector[MoveInput]):
                 gap = round(abs(goal_dx - distance_traveled), 2)
                 progress = round(abs(self.gap_previous - gap), 2)
                 self.gap_previous = gap
+
                 if self.movement_attempts > 0:
                     logging.info(f"Phase 2 - Forward/retreat GAP delta: {progress}m")
 
@@ -249,19 +251,14 @@ class MoveUnitreeSDKConnector(ActionConnector[MoveInput]):
                         return
                     fb = -1
 
-                if goal_dx == 0:
-                    logging.info("No movement required, processing next AI command")
-                    self.clean_abort()
-                    return
-
                 if gap > self.distance_tolerance:
                     self.movement_attempts += 1
                     if distance_traveled < abs(goal_dx):
-                        logging.info(f"Phase 2 - keep moving. remaining:{gap}m ")
+                        logging.info(f"Phase 2 - Keep moving. Remaining: {gap}m ")
                         self._move_robot(fb * self.move_speed, 0.0, 0.0)
                     elif distance_traveled > abs(goal_dx):
                         logging.debug(
-                            f"Phase 2 - OVERSHOOT: move other way. remaining:{gap}m"
+                            f"Phase 2 - OVERSHOOT: move other way. Remaining: {gap}m"
                         )
                         self._move_robot(-1 * fb * 0.2, 0.0, 0.0)
                 else:
@@ -352,6 +349,7 @@ class MoveUnitreeSDKConnector(ActionConnector[MoveInput]):
         if not self.lidar.retreat:
             logging.warning("Cannot retreat due to barrier")
             return
+
         self.pending_movements.put(
             MoveCommand(
                 dx=-0.5,

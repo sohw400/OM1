@@ -71,16 +71,30 @@ class RFmapper(Background):
 
         self.fds = FabricDataSubmitter(api_key=self.api_key, write_to_local_file=True)
 
+        self.seen_devices: Dict[str, RFData] = {}
+
+        self.seen_names: List[str] = []
+
         self.start()
 
-    async def scan_once(self):
-
-        seen_devices: Dict[str, RFData] = {}
+    async def scan(self):
 
         def detection_callback(device, advdata: AdvertisementData):
-            logging.debug(f"device: {device.name}")
-            logging.debug(f"device: {device.address}")
-            logging.debug(f"advdata: {advdata}")
+
+            addr = device.address
+
+            local_name = None
+            if device.name:
+                local_name = device.name
+            elif advdata.local_name:
+                local_name = advdata.local_name
+
+            # if local_name:
+            #     logging.debug(f"Local name: {local_name}")
+            #     self.seen_names.append(local_name)
+            #     # keep the list unique
+            #     self.seen_names = list(set(self.seen_names))
+            # logging.info(f"{self.seen_names}")
 
             # AdvertisementData(
             # local_name: Optional[str],
@@ -97,46 +111,71 @@ class RFmapper(Background):
             if advdata.manufacturer_data:
                 for key, value in advdata.manufacturer_data.items():
                     mfgkey = hex(key).upper()
-                    mfgval = value.hex().upper()
+                    mfgval = hex(value).upper()
                     break
 
             if advdata.service_uuids:
                 service_uuid = advdata.service_uuids[0]
 
-            seen_devices[device.address] = RFData(
-                timestamp=time.time(),
-                address=device.address,
-                name=device.name if device.name else None,
-                rssi=advdata.rssi,
-                tx_power=advdata.tx_power if advdata.tx_power else None,
-                service_uuid=service_uuid,
-                mfgkey=mfgkey,
-                mfgval=mfgval,
-            )
+            # we want to update everything EXCEPT we do not want to overwrite a resolved name
+            # and we do not want to replace a long mfgval with a short one
+            rssi = advdata.rssi
+
+            if addr in self.seen_devices:
+                self.seen_devices[addr].rssi = rssi
+                self.seen_devices[addr].timestamp = time.time()
+                self.seen_devices[addr].tx_power = (
+                    advdata.tx_power if advdata.tx_power else None
+                )
+                if local_name and self.seen_devices[addr].name is None:
+                    self.seen_devices[addr].name = local_name
+                    logging.info(f"Updated BLE name: {self.seen_devices[addr].name}")
+                if len(mfgval) > len(self.seen_devices[addr].mfgval):
+                    self.seen_devices[addr].mfgval = mfgval
+                    logging.info(
+                        f"Updated BLE mfgval: {self.seen_devices[addr].mfgval}"
+                    )
+            else:
+                # this is a new device
+                self.seen_devices[addr] = RFData(
+                    timestamp=time.time(),
+                    address=addr,
+                    name=local_name if local_name else None,
+                    rssi=rssi,
+                    tx_power=advdata.tx_power if advdata.tx_power else None,
+                    service_uuid=service_uuid,
+                    mfgkey=mfgkey,
+                    mfgval=mfgval,
+                )
 
         scanner = BleakScanner(detection_callback)
+
         await scanner.start()
-        await asyncio.sleep(5.0)
+        await asyncio.sleep(10.0)
         await scanner.stop()
+
+        logging.debug(f"ready to sort: {self.seen_devices.values()}")
 
         # Get the top 20 devices with the strongest RSSI
         sorted_devices = sorted(
-            seen_devices.values(), key=lambda d: d.rssi, reverse=True
+            self.seen_devices.values(), key=lambda d: d.rssi, reverse=True
         )
 
-        # limit to 20 max
-        if len(sorted_devices) > 20:
-            sorted_devices = sorted_devices[:20]
-
-        logging.debug(f"Scan...{sorted_devices}")
-        return sorted_devices
+        final_list: List[RFData] = []
+        for i, device in enumerate(sorted_devices):
+            # return all the strong ones, or, the ones with a local name
+            # some will be both, but that's good
+            if i < 20 or device.name:
+                final_list.append(device)
+        logging.debug(f"Scan...{final_list}")
+        return final_list
 
     def _scan_task(self):
         asyncio.set_event_loop(self.loop)
         logging.info("Starting RF scan thread...")
         self.running = True
         while self.running:
-            self.scan_results = self.loop.run_until_complete(self.scan_once())
+            self.scan_results = self.loop.run_until_complete(self.scan())
             time.sleep(1)
 
     def start(self):

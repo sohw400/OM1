@@ -208,16 +208,17 @@ class OdomProvider:
         delta = math.sqrt(dx + dy + dz)
 
         # moving? Use a decay kernal
-        self.move_history = 0.4 * delta + 0.6 * self.move_history
+        self.move_history = 0.7 * delta + 0.3 * self.move_history
 
-        if delta > 0.01 or self.move_history > 0.005:
-            # we want to detect movement quickly (and flip "moving" False->True), but
-            # wait for the platform to stabilize before we flip "moving" True->False
+        if delta > 0.01 or self.move_history > 0.01:
             self.moving = True
             logging.info(
                 f"delta moving (m): {round(delta,3)} {round(self.move_history,3)}"
             )
         else:
+            # logging.info(
+            #     f"delta moving (m): {round(delta,3)} {round(self.move_history,3)}"
+            # )
             self.moving = False
 
         angles = self.euler_from_quaternion(x, y, z, w)

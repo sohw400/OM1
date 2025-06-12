@@ -18,7 +18,7 @@
         "config": {
           "half_width_robot": 0.21,
           "use_zenoh": true,
-          "max_relevant_distance": 1.1,
+          "relevant_distance_max": 1.1,
           "sensor_mounting_angle": 270.0,
           "angles_blanked": [[-180.0, -160.0],[110.0, 180.0]]
         },

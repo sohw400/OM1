@@ -24,7 +24,8 @@ Run `rptest.py` (located in `system_hw_test`) to determine the `sensor_mounting_
 Robot and sensor configuration
 """
 half_width_robot = 0.20  # the width of the robot is 40 cm
-max_relevant_distance = 1.1  # meters
+relevant_distance_max = 1.1  # meters
+relevant_distance_min = 0.16 # meters
 sensor_mounting_angle = 180.0  # corrects for how sensor is mounted
 angles_blanked = [[-180.0, -160.0], [32.0, 46.6]] 
 ```
@@ -82,7 +83,7 @@ Robot and sensor configuration
     "use_zenoh": true, # or false, if you are using serial to connect directly to the LIDAR
     "serial_port": "/dev/cu.usbserial-0001",
     "half_width_robot": 0.21, # the width of the robot is 40 cm
-    "max_relevant_distance": 1.1, # meters
+    "relevant_distance_max": 1.1, # meters
     "sensor_mounting_angle": 180.0, # corrects for how sensor is mounted relative to robot
     "angles_blanked": [[-180.0, -160.0], [32.0, 46.6]]
   }

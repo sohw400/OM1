@@ -135,7 +135,7 @@ class RPLidarProvider:
         The half width of the robot in m
     angles_blanked: list = []
         Regions of the scan to disregard, runs from -180 to +180 deg
-    max_relevant_distance: float = 1.1
+    relevant_distance_max: float = 1.1
         Only consider barriers within this range, in m
     sensor_mounting_angle: float = 180.0
         The angle of the sensor zero relative to the way in which it's mounted
@@ -144,7 +144,8 @@ class RPLidarProvider:
     # Constants
     DEFAULT_SERIAL_PORT = "/dev/cu.usbserial-0001"
     DEFAULT_HALF_WIDTH_ROBOT = 0.20
-    DEFAULT_MAX_RELEVANT_DISTANCE = 1.1
+    DEFAULT_RELEVANT_DISTANCE_MAX = 1.1
+    DEFAULT_RELEVANT_DISTANCE_MIN = 0.08
     DEFAULT_SENSOR_MOUNTING_ANGLE = 180.0
     NUM_BEZIER_POINTS = 10
     DEGREES_TO_RADIANS = math.pi / 180.0
@@ -155,7 +156,8 @@ class RPLidarProvider:
         serial_port: str = DEFAULT_SERIAL_PORT,
         half_width_robot: float = DEFAULT_HALF_WIDTH_ROBOT,
         angles_blanked: list = None,
-        max_relevant_distance: float = DEFAULT_MAX_RELEVANT_DISTANCE,
+        relevant_distance_max: float = DEFAULT_RELEVANT_DISTANCE_MAX,
+        relevant_distance_min: float = DEFAULT_RELEVANT_DISTANCE_MIN,
         sensor_mounting_angle: float = DEFAULT_SENSOR_MOUNTING_ANGLE,
         URID: str = "",
         use_zenoh: bool = False,
@@ -173,7 +175,8 @@ class RPLidarProvider:
         self.serial_port = serial_port
         self.half_width_robot = half_width_robot
         self.angles_blanked = angles_blanked if angles_blanked is not None else []
-        self.max_relevant_distance = max_relevant_distance
+        self.relevant_distance_max = relevant_distance_max
+        self.relevant_distance_min = relevant_distance_min
         self.sensor_mounting_angle = sensor_mounting_angle
         self.URID = URID
         self.use_zenoh = use_zenoh
@@ -326,7 +329,11 @@ class RPLidarProvider:
             d_m = distance
 
             # don't worry about distant objects
-            if d_m > self.max_relevant_distance:
+            if d_m > self.relevant_distance_max:
+                continue
+
+            # don't worry about distant objects
+            if d_m < self.relevant_distance_min:
                 continue
 
             # first, correctly orient the sensor zero to the robot zero

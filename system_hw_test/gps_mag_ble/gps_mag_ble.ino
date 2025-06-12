@@ -255,6 +255,9 @@ void scan_callback(ble_gap_evt_adv_report_t* report)
 {
   node_record_t record;
   
+  // uint8_t buffer[32];
+  // memset(buffer, 0, sizeof(buffer));
+  
   /* Prepare the record and try to insert it into the existing record list */
   memcpy(record.addr, report->peer_addr.addr, 6); /* Copy the 6-byte device ADDR */    
   memcpy(record.payload, report->data.p_data, report->data.len); /* Copy the Adv Data */
@@ -263,6 +266,20 @@ void scan_callback(ble_gap_evt_adv_report_t* report)
   //   Serial.printf("WARNING EMPTY PAYLOAD IN CALLBACK");
   record.rssi = report->rssi;                     /* Copy the RSSI value */
   record.timestamp = millis();                    /* Set the timestamp (approximate) */
+
+  // /* Shortened Local Name */
+  // if(Bluefruit.Scanner.parseReportByType(report, BLE_GAP_AD_TYPE_SHORT_LOCAL_NAME, buffer, sizeof(buffer)))
+  // {
+  //   Serial.printf("SHORT NAME: %s\n", buffer);
+  //   memset(buffer, 0, sizeof(buffer));
+  // }
+
+  // /* Complete Local Name */
+  // if(Bluefruit.Scanner.parseReportByType(report, BLE_GAP_AD_TYPE_COMPLETE_LOCAL_NAME, buffer, sizeof(buffer)))
+  // {
+  //   Serial.printf("COMPLETE NAME %s\n", buffer);
+  //   memset(buffer, 0, sizeof(buffer));
+  // }
 
   /* Attempt to insert the record into the list */
   if (record.payload_length > 0) {
