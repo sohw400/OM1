@@ -10,8 +10,7 @@
     {
       "type": "Gps",
       config: {
-        "serial_port": "/dev/cu.usbmodem84401",
-        "silent": false // set to true to just spin up the provider
+        "serial_port": "/dev/cu.usbmodem84401"
       }
     }
   ],

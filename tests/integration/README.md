@@ -21,19 +21,19 @@ Instead of a monolithic test runner, we use a configuration-based approach where
 ### Running All Integration Tests
 
 ```bash
-pytest tests/integration/test_case_runner.py -v
+uv run pytest -m "integration" tests/integration/test_case_runner.py -v
 ```
 
 ### Running All Integration Tests with logging
 
 ```bash
-pytest -s --log-cli-level=INFO tests/integration/test_case_runner.py -v
+uv run pytest -m "integration" -s --log-cli-level=INFO tests/integration/test_case_runner.py -v
 ```
 
 ### Running a Specific Test Case
 
 ```bash
-TEST_CASE="coco_indoor_detection" pytest tests/integration/test_case_runner.py::test_specific_case -v
+TEST_CASE="coco_indoor_detection" uv run pytest -m "integration" tests/integration/test_case_runner.py::test_specific_case -v
 ```
 
 ## Creating New Test Cases

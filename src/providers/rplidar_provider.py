@@ -1,19 +1,121 @@
 import logging
 import math
+import multiprocessing as mp
 import threading
 import time
+from dataclasses import dataclass
+from queue import Empty, Full
 from typing import Dict, List, Optional
 
-import bezier
 import numpy as np
 import zenoh
 from numpy.typing import NDArray
 
+from runtime.logging import setup_logging
 from zenoh_idl import sensor_msgs
 from zenoh_idl.sensor_msgs import LaserScan
 
 from .rplidar_driver import RPDriver
 from .singleton import singleton
+
+
+@dataclass
+class RPLidarConfig:
+    """
+    Configuration for RPLidar.
+
+    Parameters
+    ----------
+    max_buf_meas: int
+        Maximum number of buffered measurements.
+    min_len: int
+        Minimum length of the scan.
+    max_distance_mm: int
+        Maximum distance in millimeters for valid measurements.
+    """
+
+    max_buf_meas: int = 0
+    min_len: int = 5
+    max_distance_mm: int = 1500
+
+
+def RPLidar_processor(
+    data_queue: mp.Queue,
+    control_queue: mp.Queue,
+    serial_port: str,
+    config: RPLidarConfig,
+):
+    """
+    Dedicated RPLidar processor function for multiprocessing.
+    This function runs in a separate process to handle RPLidar data processing.
+
+    Parameters
+    ----------
+    data_queue : mp.Queue
+        Queue for receiving RPLidar data.
+    control_queue : mp.Queue
+        Queue for sending control commands.
+    serial_port : str
+        The name of the serial port in use by the RPLidar sensor.
+    config : Dict
+        Configuration dictionary containing parameters for the RPLidar.
+    """
+    setup_logging("rplidar_processor")
+
+    running = True
+
+    while running:
+        lidar = None
+        try:
+            lidar = RPDriver(serial_port)
+
+            info = lidar.get_info()
+            logging.info(f"RPLidar Info: {info}")
+
+            health = lidar.get_health()
+            logging.info(f"RPLidar Health: {health[0]}")
+
+            if health[0] != "Good":
+                logging.error(f"There is a problem with the LIDAR: {health[0]}")
+                time.sleep(0.5)
+                continue
+
+            lidar.reset()
+            time.sleep(0.5)
+
+            scan = lidar.iter_scans_local(
+                scan_type="express",
+                max_buf_meas=config.max_buf_meas,
+                min_len=config.min_len,
+                max_distance_mm=config.max_distance_mm,
+            )
+
+            for scan_data in scan:
+                try:
+                    cmd = control_queue.get_nowait()
+                    if cmd == "STOP":
+                        running = False
+                        break
+                except Empty:
+                    pass
+
+                try:
+                    data_queue.put_nowait(scan_data)
+                except Full:
+                    try:
+                        data_queue.get_nowait()
+                        data_queue.put_nowait(scan_data)
+                    except Empty:
+                        pass
+
+        except Exception as e:
+            logging.error(f"Error in RPLidar processor: {e}")
+            if lidar:
+                try:
+                    lidar.reset()
+                except Exception:
+                    pass
+            time.sleep(0.5)
 
 
 @singleton
@@ -31,7 +133,7 @@ class RPLidarProvider:
         The half width of the robot in m
     angles_blanked: list = []
         Regions of the scan to disregard, runs from -180 to +180 deg
-    max_relevant_distance: float = 1.1
+    relevant_distance_max: float = 1.1
         Only consider barriers within this range, in m
     sensor_mounting_angle: float = 180.0
         The angle of the sensor zero relative to the way in which it's mounted
@@ -40,7 +142,8 @@ class RPLidarProvider:
     # Constants
     DEFAULT_SERIAL_PORT = "/dev/cu.usbserial-0001"
     DEFAULT_HALF_WIDTH_ROBOT = 0.20
-    DEFAULT_MAX_RELEVANT_DISTANCE = 1.1
+    DEFAULT_RELEVANT_DISTANCE_MAX = 1.1
+    DEFAULT_RELEVANT_DISTANCE_MIN = 0.08
     DEFAULT_SENSOR_MOUNTING_ANGLE = 180.0
     NUM_BEZIER_POINTS = 10
     DEGREES_TO_RADIANS = math.pi / 180.0
@@ -51,11 +154,15 @@ class RPLidarProvider:
         serial_port: str = DEFAULT_SERIAL_PORT,
         half_width_robot: float = DEFAULT_HALF_WIDTH_ROBOT,
         angles_blanked: list = None,
-        max_relevant_distance: float = DEFAULT_MAX_RELEVANT_DISTANCE,
+        relevant_distance_max: float = DEFAULT_RELEVANT_DISTANCE_MAX,
+        relevant_distance_min: float = DEFAULT_RELEVANT_DISTANCE_MIN,
         sensor_mounting_angle: float = DEFAULT_SENSOR_MOUNTING_ANGLE,
         URID: str = "",
         use_zenoh: bool = False,
         simple_paths: bool = False,
+        rplidar_config: RPLidarConfig = RPLidarConfig(
+            max_buf_meas=0, min_len=5, max_distance_mm=1500
+        ),
     ):
         """
         Robot and sensor configuration
@@ -66,11 +173,13 @@ class RPLidarProvider:
         self.serial_port = serial_port
         self.half_width_robot = half_width_robot
         self.angles_blanked = angles_blanked if angles_blanked is not None else []
-        self.max_relevant_distance = max_relevant_distance
+        self.relevant_distance_max = relevant_distance_max
+        self.relevant_distance_min = relevant_distance_min
         self.sensor_mounting_angle = sensor_mounting_angle
         self.URID = URID
         self.use_zenoh = use_zenoh
         self.simple_paths = simple_paths
+        self.rplidar_config = rplidar_config
 
         self.running: bool = False
         self.lidar = None
@@ -84,53 +193,29 @@ class RPLidarProvider:
         self.angles = None
         self.angles_final = None
 
-        # Precompute Bezier trajectories for path planning
-        self.curves = self._initialize_bezier_curves()
+        # Initialize paths for path planning
+        # Define 9 straight line paths separated by 15 degrees
+        # Center path is 0° (straight forward), then ±15°, ±30°, ±45°, ±60°, 180° (backwards)
+        self.path_angles = [-60, -45, -30, -15, 0, 15, 30, 45, 60, 180]
+        self.paths = self._initialize_paths()
 
-        self.paths = []
         self.pp = []
-        self.s_vals = np.linspace(0.0, 1.0, self.NUM_BEZIER_POINTS)
-
-        for curve in self.curves:
-            cp = curve.evaluate_multi(self.s_vals)
-            self.paths.append(cp)
-            pairs = list(zip(cp[0], cp[1]))
+        for path in self.paths:
+            pairs = list(zip(path[0], path[1]))
             self.pp.append(pairs)
 
         self.turn_left: List[int] = []
         self.turn_right: List[int] = []
-        self.advance: bool = False
+        self.advance: List[int] = []
         self.retreat: bool = False
 
-        self._thread: Optional[threading.Thread] = None
+        self.data_queue = mp.Queue(maxsize=5)
+        self.control_queue = mp.Queue()
+        self._rplidar_processor_thread: Optional[mp.Process] = None
 
-        if not self.use_zenoh:
-            try:
-                self.lidar = RPDriver(self.serial_port)
+        self._serial_processor_thread: Optional[threading.Thread] = None
 
-                info = self.lidar.get_info()
-                ret = f"RPLidar Info: {info}"
-
-                logging.info(ret)
-
-                health = self.lidar.get_health()
-                ret = f"RPLidar Health: {health[0]}"
-                logging.info(ret)
-
-                if health[0] == "Good":
-                    logging.info(ret)
-                else:
-                    logging.info(f"there is a problem with the LIDAR: {ret}")
-
-                # reset to clear buffers
-                self.lidar.reset()
-
-                time.sleep(0.5)
-
-            except Exception as e:
-                logging.error(f"Error in RPLidar provider: {e}")
-
-        elif self.use_zenoh:
+        if self.use_zenoh:
             logging.info("Connecting to the RPLIDAR via Zenoh")
             try:
                 self.zen = zenoh.open(zenoh.Config())
@@ -154,21 +239,42 @@ class RPLidarProvider:
         self.scans = sensor_msgs.LaserScan.deserialize(data.payload.to_bytes())
         logging.debug(f"Zenoh Laserscan data: {self.scans}")
 
-        self._preprocess_zenoh(self.scans)
+        self._zenoh_processor(self.scans)
 
     def start(self):
         """
-        Starts the RPLidar and processing thread
-        if not already running.
+        Start the RPLidar provider.
+        This method initializes the RPLidar processing thread and the serial data processing thread.
         """
-        if self._thread and self._thread.is_alive():
-            return
-
         self.running = True
-        self._thread = threading.Thread(target=self._run, daemon=True)
-        self._thread.start()
 
-    def _preprocess_zenoh(self, scan: Optional[LaserScan]):
+        if (
+            not self._rplidar_processor_thread
+            or not self._rplidar_processor_thread.is_alive()
+        ):
+            self._rplidar_processor_thread = mp.Process(
+                target=RPLidar_processor,
+                args=(
+                    self.data_queue,
+                    self.control_queue,
+                    self.serial_port,
+                    self.rplidar_config,
+                ),
+                daemon=True,
+            )
+            self._rplidar_processor_thread.start()
+
+        if (
+            not self._serial_processor_thread
+            or not self._serial_processor_thread.is_alive()
+        ):
+            self._serial_processor_thread = threading.Thread(
+                target=self._serial_processor, daemon=True
+            )
+            self._serial_processor_thread.start()
+            logging.info("RPLidar processing thread started")
+
+    def _zenoh_processor(self, scan: Optional[LaserScan]):
         """
         Preprocess Zenoh LaserScan data.
 
@@ -199,41 +305,9 @@ class RPLidarProvider:
             # angles now run from 360.0 to 0 degress
             data = list(zip(self.angles_final, scan.ranges))
             array_ready = np.array(data)
-            self._process(array_ready)
+            self._path_processor(array_ready)
 
-    def _preprocess_serial(self, scan: LaserScan):
-        """
-        Preprocess serial LaserScan data.
-
-        Parameters
-        ----------
-        scan : LaserScan
-            The serial LaserScan data to preprocess.
-            This is expected to be a 2D array with angles and distances.
-        """
-        logging.debug(f"_preprocess_serial: {scan}")
-        array = np.array(scan)
-
-        # logging.info(f"_preprocess_serial: {array.ndim}")
-
-        # the driver sends angles in degrees between from 0 to 360
-        # warning - the driver may send two or more readings per angle,
-        # this can be confusing for the code
-        angles = array[:, 0]
-
-        # logging.info(f"_preprocess_serial: {angles}")
-
-        # distances are in millimeters
-        distances_m = array[:, 1] / 1000
-
-        data = list(zip(angles, distances_m))
-
-        # logging.info(f"_preprocess_serial: {data}")
-        array_ready = np.array(data)
-        # print(f"Array {array_ready}")
-        self._process(array_ready)
-
-    def _process(self, data: NDArray):
+    def _path_processor(self, data: NDArray):
         """
         Process the RPLidar data.
         This method processes the raw data from the RPLidar,
@@ -253,7 +327,11 @@ class RPLidarProvider:
             d_m = distance
 
             # don't worry about distant objects
-            if d_m > self.max_relevant_distance:
+            if d_m > self.relevant_distance_max:
+                continue
+
+            # don't worry about distant objects
+            if d_m < self.relevant_distance_min:
                 continue
 
             # first, correctly orient the sensor zero to the robot zero
@@ -273,6 +351,11 @@ class RPLidarProvider:
                     # disregard
                     reflection = True
                     break
+
+            if d_m < self.relevant_distance_min:
+                # this is a permanent robot reflection
+                # disregard
+                reflection = True
 
             if reflection:
                 continue
@@ -326,42 +409,42 @@ class RPLidarProvider:
             # all the possible conflicting points
             for x, y, d in list(zip(X, Y, D)):
                 for apath in possible_paths:
-                    for point in self.pp[apath]:
-                        p1 = x - point[0]
-                        p2 = y - point[1]
-                        dist = math.sqrt(p1 * p1 + p2 * p2)
-                        # logging.debug(f"_process dist: {dist}")
-                        if dist < self.half_width_robot:
-                            # too close - this path will not work
-                            logging.debug(f"removing path: {apath}")
-                            path_to_remove = np.array([apath])
-                            possible_paths = np.setdiff1d(
-                                possible_paths, path_to_remove
-                            )
-                            logging.debug(f"remaining paths: {possible_paths}")
-                            break  # no need to keep checking this path - we know this path is bad
+                    path_points = self.paths[apath]
+                    start_x, start_y = (
+                        path_points[0][0],
+                        path_points[1][0],
+                    )
+                    end_x, end_y = path_points[0][-1], path_points[1][-1]
 
-        logging.debug(f"possible_paths RP Lidar: {possible_paths}")
+                    dist_to_line = self.distance_point_to_line_segment(
+                        x, y, start_x, start_y, end_x, end_y
+                    )
+
+                    if dist_to_line < self.half_width_robot:
+                        # too close - this path will not work
+                        # logging.info(f"removing path: {apath}")
+                        path_to_remove = np.array([apath])
+                        possible_paths = np.setdiff1d(possible_paths, path_to_remove)
+                        logging.debug(f"remaining paths: {possible_paths}")
+                        break  # no need to check other paths
+
+        logging.info(f"possible_paths RP Lidar: {possible_paths}")
 
         self.turn_left = []
         self.turn_right = []
-        self.advance = False
+        self.advance = []
         self.retreat = False
 
         # convert to simple list
         ppl = possible_paths.tolist()
 
         for p in ppl:
-            if p < 4:
+            if p < 3:
                 self.turn_left.append(p)
-            elif p == 4:
-                self.advance = True
+            elif p >= 3 and p <= 5:
+                self.advance.append(p)
             elif p < 9:
-                # flip the right turn encoding to make it
-                # a mirror of the left hand encoding
-                self.turn_right.append(8 - p)
-                # so now 8 -> 0, corresponding to a sharp right turn etc
-                # so now 5 -> 3, corresponding to a gentle right turn etc
+                self.turn_right.append(p)
             elif p == 9:
                 self.retreat = True
 
@@ -375,42 +458,53 @@ class RPLidarProvider:
             f"RPLidar Provider string: {self._lidar_string}\nValid paths: {self._valid_paths}"
         )
 
-    def _run(self):
+    def _serial_processor(self):
         """
-        Main loop for the RPLidar provider.
+        Serial data processing worker.
 
-        Continuously processes RPLidar data and send them
-        to the inputs and actions, as needed.
+        This method works for the serial RPLidar driver without Zenoh.
         """
-        while self.running and self.lidar:
-            if not self.use_zenoh:
-                # we are using serial
-                try:
-                    for i, scan in enumerate(
-                        self.lidar.iter_scans_local(
-                            scan_type="express",
-                            max_buf_meas=0,
-                            min_len=25,
-                            max_distance_mm=1500,
-                        )
-                    ):
-                        self._preprocess_serial(scan)
-                        time.sleep(0.05)
-                except Exception as e:
-                    logging.error(f"Error in Serial RPLidar provider: {e}")
+        while self.running:
+            try:
+                scan = self.data_queue.get_nowait()
+                scan_array = np.array(scan)
+                logging.debug(f"_serial_processor: {scan_array.ndim}")
+
+                # the driver sends angles in degrees between from 0 to 360
+                # warning - the driver may send two or more readings per angle,
+                # this can be confusing for the code
+                angles = scan_array[:, 0]
+
+                logging.debug(f"_serial_processor: {angles}")
+
+                # distances are in millimeters
+                distances_m = scan_array[:, 1] / 1000
+
+                data = list(zip(angles, distances_m))
+
+                logging.debug(f"_serial_processor: {data}")
+                array_ready = np.array(data)
+                self._path_processor(array_ready)
+            except Empty:
+                time.sleep(0.1)
+                continue
 
     def stop(self):
         """
         Stop the RPLidar provider.
         """
         self.running = False
-        if self._thread:
-            logging.info("Stopping RPLidar provider")
+
+        if self._rplidar_processor_thread:
+            logging.info("Stopping RPLidar processor thread")
             if not self.use_zenoh:
-                self.lidar.stop()
-                self.lidar.disconnect()
+                self.control_queue.put("STOP")
                 time.sleep(0.5)
-            self._thread.join(timeout=5)
+            self._rplidar_processor_thread.join(timeout=5)
+
+        if self._serial_processor_thread:
+            logging.info("Stopping RPLidar serial processor thread")
+            self._serial_processor_thread.join(timeout=5)
 
     @property
     def valid_paths(self) -> Optional[list]:
@@ -472,43 +566,111 @@ class RPLidarProvider:
             "retreat": self.retreat,
         }
 
-    def _initialize_bezier_curves(self):
-        """Initialize Bezier curves for path planning."""
+    def _create_straight_path_from_angle(
+        self, angle_degrees: float, length: float = 1.0, num_points: int = 30
+    ) -> np.ndarray:
+        """
+        Create a straight path from a given angle.
+
+        Parameters
+        ----------
+        angle_degrees : float
+            The angle in degrees from which to create the path.
+        length : float, optional
+            The length of the path, by default 1.0.
+        num_points : int, optional
+            The number of points in the path, by default 30.
+
+        Returns
+        -------
+        np.ndarray
+            A NumPy array containing the x and y coordinates of the path points.
+        """
+        angle_rad = math.radians(angle_degrees)
+        end_x = length * math.sin(angle_rad)
+        end_y = length * math.cos(angle_rad)
+
+        x_vals = np.linspace(0.0, end_x, num_points)
+        y_vals = np.linspace(0.0, end_y, num_points)
+        return np.array([x_vals, y_vals])
+
+    def _initialize_paths(self) -> List[np.ndarray]:
+        """
+        Initialize paths for path planning.
+
+        Returns
+        -------
+        List[np.ndarray]
+            A list of NumPy arrays representing the paths.
+        """
         return [
-            bezier.Curve(
-                np.asfortranarray([[0.0, -0.3, -0.75], [0.0, 0.5, 0.40]]), degree=2
-            ),
-            bezier.Curve(
-                np.asfortranarray([[0.0, -0.3, -0.70], [0.0, 0.6, 0.70]]), degree=2
-            ),
-            bezier.Curve(
-                np.asfortranarray([[0.0, -0.2, -0.60], [0.0, 0.7, 0.90]]), degree=2
-            ),
-            bezier.Curve(
-                np.asfortranarray([[0.0, -0.1, -0.35], [0.0, 0.7, 1.03]]), degree=2
-            ),
-            bezier.Curve(
-                np.asfortranarray([[0.0, 0.0, 0.00], [0.0, 0.5, 1.05]]), degree=2
-            ),
-            bezier.Curve(
-                np.asfortranarray([[0.0, +0.1, +0.35], [0.0, 0.7, 1.03]]), degree=2
-            ),
-            bezier.Curve(
-                np.asfortranarray([[0.0, +0.2, +0.60], [0.0, 0.7, 0.90]]), degree=2
-            ),
-            bezier.Curve(
-                np.asfortranarray([[0.0, +0.3, +0.70], [0.0, 0.6, 0.70]]), degree=2
-            ),
-            bezier.Curve(
-                np.asfortranarray([[0.0, +0.3, +0.75], [0.0, 0.5, 0.40]]), degree=2
-            ),
-            bezier.Curve(
-                np.asfortranarray([[0.0, 0.0, 0.00], [0.0, -0.5, -1.05]]), degree=2
-            ),
+            self._create_straight_path_from_angle(angle, length=1.0)
+            for angle in self.path_angles
         ]
 
+    def distance_point_to_line_segment(
+        self, px: float, py: float, x1: float, y1: float, x2: float, y2: float
+    ) -> float:
+        """
+        Calculate the distance from a point to a line segment.
+        This method computes the shortest distance from a point (px, py) to a line segment defined by two endpoints (x1, y1) and (x2, y2).
+        If the line segment has zero length, it returns the distance from the point to one of the endpoints.
+
+        Parameters
+        ----------
+        px : float
+            The x-coordinate of the point.
+        py : float
+            The y-coordinate of the point.
+        x1 : float
+            The x-coordinate of the first endpoint of the line segment.
+        y1 : float
+            The y-coordinate of the first endpoint of the line segment.
+        x2 : float
+            The x-coordinate of the second endpoint of the line segment.
+        y2 : float
+            The y-coordinate of the second endpoint of the line segment.
+
+        Returns
+        -------
+        float
+            The shortest distance from the point to the line segment.
+            If the line segment has zero length, it returns the distance to the closest endpoint.
+        """
+        dx = x2 - x1
+        dy = y2 - y1
+
+        # If the line segment has zero length, return distance to point
+        if dx == 0 and dy == 0:
+            return math.sqrt((px - x1) ** 2 + (py - y1) ** 2)
+
+        # Calculate the parameter t that represents the projection of the point onto the line
+        t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)
+
+        # Clamp t to [0, 1] to stay within the line segment
+        t = max(0, min(1, t))
+
+        # Find the closest point on the line segment
+        closest_x = x1 + t * dx
+        closest_y = y1 + t * dy
+
+        return math.sqrt((px - closest_x) ** 2 + (py - closest_y) ** 2)
+
     def _generate_movement_string(self, valid_paths: list) -> str:
-        """Generate movement direction string based on valid paths."""
+        """
+        Generate movement direction string based on valid paths.
+
+        Parameters
+        ----------
+        valid_paths : list
+            A list of valid paths represented as integers.
+            Each integer corresponds to a specific movement direction.
+
+        Returns
+        -------
+        str
+            A string describing the safe movement directions based on the valid paths.
+        """
         if not valid_paths:
             return "You are surrounded by objects and cannot safely move in any direction. DO NOT MOVE."
 

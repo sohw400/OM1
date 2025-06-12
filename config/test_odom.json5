@@ -12,7 +12,6 @@
       config: {
         "use_zenoh": false,
         "URID": "",     // only needed for Zenoh
-        "silent": false // set to true to just spin up the provider
       }
     }
   ],

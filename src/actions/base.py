@@ -11,9 +11,9 @@ OT = T.TypeVar("OT")
 class MoveCommand:
     dx: float
     yaw: float
-    direction: str
     start_x: float = 0.0
     start_y: float = 0.0
+    turn_complete: bool = False
 
 
 @dataclass
@@ -81,4 +81,4 @@ class AgentAction:
     interface: T.Type[Interface]
     implementation: ActionImplementation
     connector: ActionConnector
-    silent: bool
+    exclude_from_prompt: bool

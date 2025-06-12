@@ -4,7 +4,6 @@ import sys
 import threading
 import time
 
-import bezier
 import numpy as np
 import zenoh
 from matplotlib import pyplot as plot
@@ -28,30 +27,33 @@ print(parser.format_help())
 
 args = parser.parse_args()
 
-"""
-precompute Bezier trajectories
-"""
-curves = [
-    bezier.Curve(np.asfortranarray([[0.0, -0.3, -0.75], [0.0, 0.5, 0.40]]), degree=2),
-    bezier.Curve(np.asfortranarray([[0.0, -0.3, -0.70], [0.0, 0.6, 0.70]]), degree=2),
-    bezier.Curve(np.asfortranarray([[0.0, -0.2, -0.60], [0.0, 0.7, 0.90]]), degree=2),
-    bezier.Curve(np.asfortranarray([[0.0, -0.1, -0.35], [0.0, 0.7, 1.03]]), degree=2),
-    bezier.Curve(np.asfortranarray([[0.0, 0.0, 0.00], [0.0, +0.5, +1.05]]), degree=2),
-    bezier.Curve(np.asfortranarray([[0.0, +0.1, +0.35], [0.0, 0.7, 1.03]]), degree=2),
-    bezier.Curve(np.asfortranarray([[0.0, +0.2, +0.60], [0.0, 0.7, 0.90]]), degree=2),
-    bezier.Curve(np.asfortranarray([[0.0, +0.3, +0.70], [0.0, 0.6, 0.70]]), degree=2),
-    bezier.Curve(np.asfortranarray([[0.0, +0.3, +0.75], [0.0, 0.5, 0.40]]), degree=2),
-    bezier.Curve(np.asfortranarray([[0.0, 0.0, 0.00], [0.0, -0.5, -1.05]]), degree=2),
+
+def create_straight_line_path_from_angle(angle_degrees, length=1.0, num_points=10):
+    """Create a straight line path from origin at specified angle and length"""
+    angle_rad = math.radians(angle_degrees)
+    end_x = length * math.sin(angle_rad)  # sin for x because 0° is forward (positive y)
+    end_y = length * math.cos(angle_rad)  # cos for y because 0° is forward (positive y)
+
+    x_vals = np.linspace(0.0, end_x, num_points)
+    y_vals = np.linspace(0.0, end_y, num_points)
+    return np.array([x_vals, y_vals])
+
+
+# Define 9 straight line paths separated by 15 degrees
+# Center path is 0° (straight forward), then ±15°, ±30°, ±45°, ±60°
+path_angles = [-60, -45, -30, -15, 0, 15, 30, 45, 60, 180]  # degrees
+path_length = 1.05  # meters
+
+paths = [
+    create_straight_line_path_from_angle(angle, path_length) for angle in path_angles
 ]
 
-paths = []
-pp = []
-s_vals = np.linspace(0.0, 1.0, 10)
+print(f"Created {len(paths)} paths with angles: {path_angles}")
+print(f"Each path extends {path_length}m from robot center")
 
-for curve in curves:
-    cp = curve.evaluate_multi(s_vals)
-    paths.append(cp)
-    pairs = list(zip(cp[0], cp[1]))
+pp = []
+for path in paths:
+    pairs = list(zip(path[0], path[1]))
     pp.append(pairs)
 
 print(paths)
@@ -77,9 +79,11 @@ UNITREE
 """
 
 half_width_robot = 0.20  # the width of the robot is 40 cm
-max_relevant_distance = 1.1  # meters
+relevant_distance_max = 1.1  # meters
+relevant_distance_min = 0.20  # meters
 sensor_mounting_angle = 172.0  # corrects for how sensor is mounted
-angles_blanked = [[-180.0, -140.0], [140.0, 180.0]]
+# angles_blanked = [[-180.0, -140.0], [140.0, 180.0]]
+angles_blanked = []
 
 # Figure 2 - the zoom and the possible paths
 centerZoom = ax2.plot([0], [0], "o", color="blue")[0]  # the robot
@@ -106,7 +110,7 @@ ax2.set_ylim(-1.2, 1.2)
 ax2.set_aspect("equal")
 
 lines = []
-for li in list(range(0, len(curves) + 1)):
+for li in list(range(0, len(paths))):
     lines.append(ax2.plot([0], [0], "-", color="black")[0])
 
 line = ax3.plot([0], [0], "-", color="red")[0]
@@ -121,7 +125,6 @@ ax3.annotate("Left", xytext=(-125, 1.1), xy=(0, 0.5))
 ax3.annotate("Front", xytext=(-20, 1.1), xy=(0, 0.5))
 ax3.annotate("Right", xytext=(85, 1.1), xy=(0, 0.5))
 
-
 # display the blanked regions of the scan
 for b in angles_blanked:
     deg_to_rad = np.pi / 180.0
@@ -130,7 +133,7 @@ for b in angles_blanked:
     end_angle = b[1] * deg_to_rad
 
     theta = np.linspace(start_angle, end_angle, 50)
-    r = max_relevant_distance
+    r = relevant_distance_max
 
     x = r * np.sin(theta)
     y = r * np.cos(theta)
@@ -191,6 +194,29 @@ def zenoh_scan(sample):
     process(array_ready)
 
 
+def distance_point_to_line_segment(px, py, x1, y1, x2, y2):
+    # Vector from line start to line end
+    dx = x2 - x1
+    dy = y2 - y1
+
+    # If the line segment has zero length, return distance to point
+    if dx == 0 and dy == 0:
+        return math.sqrt((px - x1) ** 2 + (py - y1) ** 2)
+
+    # Calculate the parameter t that represents the projection of the point onto the line
+    t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)
+
+    # Clamp t to [0, 1] to stay within the line segment
+    t = max(0, min(1, t))
+
+    # Find the closest point on the line segment
+    closest_x = x1 + t * dx
+    closest_y = y1 + t * dy
+
+    # Return the distance from the point to the closest point on the line segment
+    return math.sqrt((px - closest_x) ** 2 + (py - closest_y) ** 2)
+
+
 def process(data):
 
     complexes = []
@@ -232,6 +258,10 @@ def process(data):
                 keep = False
                 break
 
+        if d_m < relevant_distance_min:
+            # this is too close, disregard
+            keep = False
+
         # the final data ready to use for path planning
         if keep:
             complexes.append([x, y, angle, d_m])
@@ -267,53 +297,91 @@ def process(data):
 
     # all the possible conflicting points
     for x, y, d in list(zip(X, Y, D)):
-        if d > max_relevant_distance:  # too far away - we do not care
-            continue
         for apath in possible_paths:
-            for point in pp[apath]:
-                p1 = x - point[0]
-                p2 = y - point[1]
-                dist = math.sqrt(p1 * p1 + p2 * p2)
-                if dist < half_width_robot:
-                    # too close - this path will not work
-                    path_to_remove = np.array([apath])
-                    bad_paths.append(apath)
-                    possible_paths = np.setdiff1d(possible_paths, path_to_remove)
-                    break  # no need to keep checking this path - we know this path is bad
 
-    print(f"possible_paths RP Lidar: {possible_paths}")
+            # too far away - we do not care
+            if d > relevant_distance_max:
+                continue
+
+            # also don't worry about things that are very close
+            if d < relevant_distance_min:
+                continue
+
+            # Get the start and end points of this straight line path
+            path_points = paths[apath]
+            start_x, start_y = (
+                path_points[0][0],
+                path_points[1][0],
+            )
+            end_x, end_y = path_points[0][-1], path_points[1][-1]
+
+            # Calculate distance from obstacle to the line segment
+            dist_to_line = distance_point_to_line_segment(
+                x, y, start_x, start_y, end_x, end_y
+            )
+
+            if dist_to_line < half_width_robot:
+                # too close - this path will not work
+                path_to_remove = np.array([apath])
+                bad_paths.append(apath)
+                possible_paths = np.setdiff1d(possible_paths, path_to_remove)
+                break  # no need to keep checking this path - we know this path is bad
+
+    print(f"possible_paths: {possible_paths}")
 
     # convert to simple list
     ppl = possible_paths.tolist()
 
-    turn_left = []
-    advance = []
-    turn_right = []
-    retreat = []
+    left = []
+    forward = []
+    right = []
+    backward = []
 
     for p in ppl:
-        # all the possible paths
-        if p < 4:
-            turn_left.append(p)
-        elif p == 4:
-            advance.append(p)
-        elif p < 9:
-            turn_right.append(p)
-        elif p == 9:
-            retreat.append(p)
+        # Categorize paths based on angle
+        angle = path_angles[p]
+        if angle == -60:
+            left.append(p)
+        elif angle == -45:
+            left.append(p)
+        elif angle == -30:
+            left.append(p)
+        elif angle == -15:
+            forward.append(p)
+        elif angle == 0:
+            forward.append(p)
+        elif angle == 15:
+            forward.append(p)
+        elif angle == 30:
+            right.append(p)
+        elif angle == 45:
+            right.append(p)
+        elif angle == 60:
+            right.append(p)
+        elif angle == 180:
+            backward.append(p)
+
         lines[p].set_data(paths[p][0], paths[p][1])
         lines[p].set_color("green")
 
     if len(ppl) > 0:
         print(f"There are {len(ppl)} possible paths.")
-        if len(turn_left) > 0:
-            print(f"You can turn left using paths: {turn_left}.")
-        if len(advance) > 0:
-            print("You can advance.")
-        if len(turn_right) > 0:
-            print(f"You can turn right using paths: {turn_right}.")
-        if len(retreat) > 0:
-            print("You can retreat.")
+        if len(left) > 0:
+            print(
+                f"You can turn left using paths: {left} ({[path_angles[p] for p in left]}°)."
+            )
+        if len(forward) > 0:
+            print(
+                f"You can go forward using paths: {forward} ({[path_angles[p] for p in forward]}°)."
+            )
+        if len(right) > 0:
+            print(
+                f"You can turn right using paths: {right} ({[path_angles[p] for p in right]}°)."
+            )
+        if len(backward) > 0:
+            print(
+                f"You can go backward using paths: {backward} ({[path_angles[p] for p in backward]}°)."
+            )
     else:
         print(
             "You are surrounded by objects and cannot safely move in any direction. DO NOT MOVE."

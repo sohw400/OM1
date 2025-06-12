@@ -1,6 +1,8 @@
+import asyncio
 import logging
 import os
 import re
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -15,7 +17,10 @@ from tests.integration.mock_inputs.input_registry import (
     register_mock_inputs,
     unregister_mock_inputs,
 )
-from tests.integration.mock_inputs.mock_image_provider import load_test_images
+from tests.integration.mock_inputs.mock_image_provider import (
+    get_image_provider,
+    load_test_images,
+)
 
 # Register mock inputs with the input loading system
 register_mock_inputs()
@@ -27,6 +32,21 @@ TEST_CASES_DIR = DATA_DIR / "test_cases"
 
 # Global client to be created once for all test cases
 _llm_client = None
+
+# Movement types that should be considered movement commands
+MOVEMENT_ACTION_TYPES = {
+    "stand still",
+    "sit",
+    "dance",
+    "shake paw",
+    "walk",
+    "walk back",
+    "run",
+    "jump",
+    "wag tail",
+}
+
+EMOTION_TYPES = {"cry", "smile", "frown", "think", "joy"}
 
 
 def process_env_vars(config_dict):
@@ -167,6 +187,8 @@ async def run_test_case(config: Dict[str, Any]) -> Dict[str, Any]:
     if not images:
         raise ValueError("No valid test images found in configuration")
 
+    logging.info(f"Loaded {len(images)} test images for test case")
+
     # Prepare image metadata
     image_metadata = {
         "scene_type": config["input"].get("scene_type", "unknown"),
@@ -176,6 +198,9 @@ async def run_test_case(config: Dict[str, Any]) -> Dict[str, Any]:
 
     # Load test images into the central mock provider
     load_test_images(images, image_metadata)
+    logging.info(
+        f"Images loaded into mock provider, provider now has {len(get_image_provider().test_images)} images"
+    )
 
     # No need to modify config - the input_registry will handle mapping
     # the real input types to their mock equivalents
@@ -228,6 +253,9 @@ async def run_test_case(config: Dict[str, Any]) -> Dict[str, Any]:
     # Run a single tick of the cortex loop
     await cortex._tick()
 
+    # Clean up inputs after test completion
+    await cleanup_mock_inputs(cortex.config.agent_inputs)
+
     # The output includes detection results and commands
     return output_results
 
@@ -246,12 +274,65 @@ async def initialize_mock_inputs(inputs):
     """
     for input_obj in inputs:
         if hasattr(input_obj, "_poll") and hasattr(input_obj, "raw_to_text"):
-            # Poll for input data
-            input_data = await input_obj._poll()
-            if input_data is not None:
-                # Process the input data
-                await input_obj.raw_to_text(input_data)
-                logging.info(f"Initialized mock input: {type(input_obj).__name__}")
+            logging.info(f"Starting to poll for input: {type(input_obj).__name__}")
+            start_time = time.time()
+            timeout = 10.0  # 10 second timeout
+
+            while time.time() - start_time < timeout:
+                # Poll for input data
+                input_data = await input_obj._poll()
+                if input_data is not None:
+                    # Process the input data
+                    await input_obj.raw_to_text(input_data)
+                    logging.info(f"Initialized mock input: {type(input_obj).__name__}")
+                    break
+                else:
+                    logging.info(
+                        f"Waiting for input data from {type(input_obj).__name__}..."
+                    )
+                    await asyncio.sleep(0.1)  # Check every 100ms
+            else:
+                logging.warning(
+                    f"Timeout waiting for input data from {type(input_obj).__name__}"
+                )
+
+
+async def cleanup_mock_inputs(inputs):
+    """
+    Clean up mock inputs after testing.
+
+    This function properly stops all inputs to prevent background processes
+    from continuing after the test completes.
+
+    Parameters
+    ----------
+    inputs : List
+        List of input objects from the runtime config
+    """
+    for input_obj in inputs:
+        try:
+            # Try async stop method first
+            if hasattr(input_obj, "stop") and asyncio.iscoroutinefunction(
+                input_obj.stop
+            ):
+                await input_obj.stop()
+                logging.info(
+                    f"Cleaned up mock input (async): {type(input_obj).__name__}"
+                )
+            # Try synchronous cleanup method
+            elif hasattr(input_obj, "cleanup"):
+                input_obj.cleanup()
+                logging.info(
+                    f"Cleaned up mock input (sync): {type(input_obj).__name__}"
+                )
+            # Try synchronous stop method
+            elif hasattr(input_obj, "stop"):
+                input_obj.stop()
+                logging.info(
+                    f"Cleaned up mock input (stop): {type(input_obj).__name__}"
+                )
+        except Exception as e:
+            logging.error(f"Error cleaning up {type(input_obj).__name__}: {e}")
 
 
 async def evaluate_with_llm(
@@ -295,9 +376,9 @@ async def evaluate_with_llm(
     formatted_actual = {
         "movement": next(
             (
-                cmd.value
+                cmd.type
                 for cmd in actual_output.get("actions", [])
-                if hasattr(cmd, "type") and cmd.type == "move"
+                if hasattr(cmd, "type") and cmd.type in MOVEMENT_ACTION_TYPES
             ),
             "unknown",
         ),
@@ -339,7 +420,7 @@ detected
 detected
 
     Your response must follow this format exactly:
-    Rating: [number 1-5]
+    Rating: [from 0 to 1]
     Reasoning: [clear explanation of your rating, referencing specific evidence]"""
 
     user_prompt = f"""
@@ -349,19 +430,21 @@ detected
 should respond appropriately to what it detects.
 
     EXPECTED OUTPUT:
-    - Movement command: "{formatted_expected['movement']}"
-    - Should detect keywords: {formatted_expected['keywords']}
+    - Movement command: "{formatted_expected["movement"]}"
+    - Should detect keywords: {formatted_expected["keywords"]}
 
     ACTUAL OUTPUT:
-    - Movement command: "{formatted_actual['movement']}"
-    - Keywords successfully detected: {formatted_actual['keywords_found']}
+    - Movement command: "{formatted_actual["movement"]}"
+    - Keywords successfully detected: {formatted_actual["keywords_found"]}
+
+    {'''SPECIAL INSTRUCTION: The expected movement is "any", which means any movement action (sit, dance, walk, etc.) should be considered a perfect match as long as it's not "unknown".''' if formatted_expected["movement"].lower() == "any" else ""}
 
     Compare these results carefully. Does the actual movement match the expected \
 movement? Were the expected keywords detected? Does the response make sense for \
 what was detected in the scene?
 
     Provide your evaluation in exactly this format:
-    Rating: [1-5]
+    Rating: [from 0 to 1]
     Reasoning: [Your detailed explanation]
     """
 
@@ -379,17 +462,14 @@ what was detected in the scene?
 
         # Parse the rating and reasoning
         try:
-            rating_match = re.search(r"Rating:\s*(\d+)", content)
-            rating = int(rating_match.group(1)) if rating_match else 3
-
-            # Normalize score to 0-1 range
-            normalized_score = (rating - 1) / 4.0
+            rating_match = re.search(r"Rating:\s*(\d*\.?\d+)", content)
+            rating = float(rating_match.group(1)) if rating_match else 0.5
 
             # Extract reasoning
             reasoning_match = re.search(r"Reasoning:\s*(.*)", content, re.DOTALL)
             reasoning = reasoning_match.group(1).strip() if reasoning_match else content
 
-            return normalized_score, reasoning
+            return rating, reasoning
 
         except Exception as e:
             logging.error(f"Error parsing LLM evaluation response: {e}")
@@ -422,29 +502,26 @@ async def evaluate_test_results(
     """
     # Extract movement from commands if available
     movement = None
+    logging.info(f"Actions: {results['actions']}")
     if "actions" in results and results["actions"]:
         for command in results["actions"]:
-            if command.type == "move":
+            if command.type in MOVEMENT_ACTION_TYPES:
+                movement = command.type
+                break
+            elif command.type == "move":
                 movement = command.value
                 break
-
-    # If no movement found in commands, try to extract from raw response
-    if not movement and "raw_response" in results:
-        raw_response = results["raw_response"]
-        if isinstance(raw_response, str):
-            if "turn_left" in raw_response.lower():
-                movement = "turn_left"
-            elif "turn_right" in raw_response.lower():
-                movement = "turn_right"
-            elif "move_forward" in raw_response.lower():
-                movement = "move_forward"
 
     # Assign a default if still not found
     if not movement:
         movement = "unknown"
 
     # Perform heuristic evaluation
-    movement_match = movement == expected["movement"]
+    # Special case: if expected movement is "any", then any actual movement is a match
+    if expected["movement"].lower() == "any":
+        movement_match = movement != "unknown"
+    else:
+        movement_match = movement == expected["movement"]
 
     expected_keywords = expected.get("keywords", [])
     keyword_matches = []
@@ -484,7 +561,7 @@ async def evaluate_test_results(
     if results.get("actions"):
         details.append("\nCommands:")
         for i, command in enumerate(results["actions"]):
-            details.append(f"- Command {i+1}: {command.type}: {command.value}")
+            details.append(f"- Command {i + 1}: {command.type}: {command.value}")
 
     message = "\n".join(details)
 
@@ -495,7 +572,6 @@ async def evaluate_test_results(
     return passed, final_score, message
 
 
-@pytest.mark.no_collect
 class TestCategory:
     """Represents a category of test cases."""
 
@@ -602,6 +678,17 @@ async def test_from_config(test_case_path: Path):
     test_case_path : Path
         Path to the test case configuration file
     """
+    # Reset mock image provider to ensure test isolation
+    provider = get_image_provider()
+    provider.reset()
+    # Clear any existing images to ensure clean state
+    provider.test_images = []
+    provider.image_cache = {}
+    provider.image_metadata = {}
+
+    # Add a small delay to reduce race conditions between parallel tests
+    await asyncio.sleep(0.1)
+
     # Load and process the test case configuration
     try:
         logging.info(f"Loading test case: {test_case_path}")
@@ -612,6 +699,9 @@ async def test_from_config(test_case_path: Path):
             f"Running test case: {config['name']} ({config.get('category', 'uncategorized')})"
         )
         logging.info(f"Description: {config['description']}")
+        logging.info(
+            f"Expected images for test: {len(config.get('input', {}).get('images', []))}"
+        )
 
         # Run the test case
         results = await run_test_case(config)
@@ -635,6 +725,10 @@ async def test_from_config(test_case_path: Path):
 
 
 # Run a specific test case by name
+@pytest.mark.skipif(
+    not os.environ.get("TEST_CASE"),
+    reason="Skipping specific test case (TEST_CASE is not set)",
+)
 @pytest.mark.asyncio
 @pytest.mark.integration
 async def test_specific_case():

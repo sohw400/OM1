@@ -208,16 +208,17 @@ class OdomProvider:
         delta = math.sqrt(dx + dy + dz)
 
         # moving? Use a decay kernal
-        self.move_history = 0.4 * delta + 0.6 * self.move_history
+        self.move_history = 0.7 * delta + 0.3 * self.move_history
 
-        if delta > 0.01 or self.move_history > 0.005:
-            # we want to detect movement quickly (and flip "moving" False->True), but
-            # wait for the platform to stabilize before we flip "moving" True->False
+        if delta > 0.01 or self.move_history > 0.01:
             self.moving = True
             logging.info(
                 f"delta moving (m): {round(delta,3)} {round(self.move_history,3)}"
             )
         else:
+            # logging.info(
+            #     f"delta moving (m): {round(delta,3)} {round(self.move_history,3)}"
+            # )
             self.moving = False
 
         angles = self.euler_from_quaternion(x, y, z, w)
@@ -228,23 +229,23 @@ class OdomProvider:
         # runs from -180 to + 180, where 0 is the "nose" of the robot
 
         # runs from 0 to 360
-        self.yaw_odom_0_360 = self.yaw_odom_m180_p180 + 180.0
+        self.yaw_odom_0_360 = round(self.yaw_odom_m180_p180 + 180.0, 2)
 
         # current position in world frame
-        self.x = pose.position.x
-        self.y = pose.position.y
+        self.x = round(pose.position.x, 2)
+        self.y = round(pose.position.y, 2)
 
-    @property
-    def odom(self) -> Optional[Union[Odometry, PoseStamped_]]:
-        """
-        Get the current odometry data.
-
-        Returns
-        -------
-        Optional[Union[Odometry, PoseStamped_]]
-            The current odometry data if available, otherwise None.
-        """
-        return self._odom
+    # this should all be handled via the "position" property
+    # @property
+    # def odom(self) -> Optional[Union[Odometry, PoseStamped_]]:
+    #     """
+    #     Get the current odometry data.
+    #     Returns
+    #     -------
+    #     Optional[Union[Odometry, PoseStamped_]]
+    #         The current odometry data if available, otherwise None.
+    #     """
+    #     return self._odom
 
     @property
     def position(self) -> dict:
@@ -269,6 +270,7 @@ class OdomProvider:
             "y": self.y,
             "moving": self.moving,
             "yaw_odom_0_360": self.yaw_odom_0_360,
+            "yaw_odom_m180_p180": self.yaw_odom_m180_p180,
             "body_height_cm": self.body_height_cm,
             "body_attitude": self.body_attitude,
         }

@@ -64,8 +64,14 @@ class UnitreeGo2Battery(FuserInput[str]):
         self.low_state = None
         self.lowstate_subscriber = None
 
-        self.lowstate_subscriber = ChannelSubscriber("rt/lowstate", LowState_)
-        self.lowstate_subscriber.Init(self.LowStateMessageHandler, 10)
+        try:
+            self.lowstate_subscriber = ChannelSubscriber("rt/lowstate", LowState_)
+            logging.info("Battery monitor initialized")
+        except Exception as e:
+            logging.error(f"Error initializing Battery monitor: {e}")
+
+        if self.lowstate_subscriber:
+            self.lowstate_subscriber.Init(self.LowStateMessageHandler, 10)
 
         # battery state
         self.battery_percentage = 0.0

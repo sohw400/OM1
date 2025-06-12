@@ -12,9 +12,10 @@ from actions.base import (
 )
 
 
-def describe_action(action_name: str, llm_label: str, silent: bool) -> Optional[str]:
-
-    if silent:
+def describe_action(
+    action_name: str, llm_label: str, exclude_from_prompt: bool
+) -> Optional[str]:
+    if exclude_from_prompt:
         return None
 
     interface = None
@@ -91,9 +92,9 @@ def load_action(
         )
     config = ActionConfig(**action_config.get("config", {}))
 
-    silent = False
-    if "silent" in action_config:
-        silent = action_config["silent"]
+    exclude_from_prompt = False
+    if "exclude_from_prompt" in action_config:
+        exclude_from_prompt = action_config["exclude_from_prompt"]
 
     return AgentAction(
         name=action_config["name"],
@@ -101,5 +102,5 @@ def load_action(
         interface=interface,
         implementation=implementation_class(config),
         connector=connector_class(config),
-        silent=silent,
+        exclude_from_prompt=exclude_from_prompt,
     )

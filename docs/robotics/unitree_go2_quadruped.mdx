@@ -157,9 +157,9 @@ alive: 1a6535ff:d7346fd8:87885024:9a136972 rt/programming_actuator/feedback std_
 
 Add the `dds` python module to your code base: `uv pip install -r pyproject.toml --extra dds`.
 
-## Step 3 Connect an Xbox controller
+## Step 3 Connect an Game Controller
 
-On Mac, **make sure that your Xbox controller is running the most recent firmware**, otherwise you will be able to pair but not connect to the controller. You will need a PC with `Xbox Accessories` to update the Xbox controller's firmware. Many Mac OS updates hose support for the Xbox controller, which is then fixed (after some delay) via an Xbox firmware update. 
+On Mac, if you are using an Xbox controller, **make sure that it is running the most recent firmware**, otherwise you will be able to pair but not connect to the controller. You will need a PC with `Xbox Accessories` to update the Xbox controller's firmware. Many Mac OS updates hose support for the Xbox controller, which is then fixed (after some delay) via an Xbox firmware update. 
 
 On Mac, you will need to install `hidapi`:
 
@@ -204,7 +204,7 @@ Note - the internal Go2 LIDAR is currently not used - a separate RPLIDAR mounted
 
 ## CONFIGURATION 1: Minimal Quadruped Functionality
 
-In this configuration, the quadruped observes its environment, listens and speaks, but there is no AI-controlled movement. However, you can manually control the dog's movements with an Xbox controller. 
+In this configuration, the quadruped observes its environment, listens and speaks, but there is no AI-controlled movement. You can manually control the dog's movements with an game controller. 
 
 Run
 ```bash
@@ -215,22 +215,9 @@ Press:
 
 * A to stand up
 * B to sit down
-* The D-pad allows you to steer the quadruped. 
+* The D-pad allows you to steer the quadruped.
 
-## CONFIGURATION 2: Full Autonomy
-
-Run
-```bash
-uv run src/run.py unitree_go2_autonomy
-```
-
-OM1 will provide LIDAR and other data to a system of LLMs, allowing them to autonomously explore indoor and outdoor environments. You can also manually control the dog via the Xbox game controller. Press:
-
-* A to stand up
-* B to sit down
-* The D-pad allows you to steer the quadruped. 
-
-The Xbox game controller has command precedence over the AI, so game controller inputs will block AI-generated physical actions.  
+See the [Quadruped Configurations](unitree_go2_quadruped_configurations) for additional configurations.
 
 ## Unitree Go2 EDU Common Problems
 

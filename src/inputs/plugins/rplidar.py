@@ -50,9 +50,6 @@ class RPLidar(FuserInput[str]):
 
         logging.info(f"Config: {self.config}")
 
-        # Extract configuration parameters
-        self.silent = getattr(config, "silent", False)
-
         # Build lidar configuration from config
         lidar_config = self._extract_lidar_config(config)
 
@@ -76,9 +73,6 @@ class RPLidar(FuserInput[str]):
             The next message from the buffer if available, None otherwise
         """
         await asyncio.sleep(0.2)
-
-        if self.silent:
-            return None
 
         try:
             return self.lidar.lidar_string
@@ -163,7 +157,8 @@ class RPLidar(FuserInput[str]):
             "use_zenoh": getattr(config, "use_zenoh", False),
             "half_width_robot": getattr(config, "half_width_robot", 0.20),
             "angles_blanked": getattr(config, "angles_blanked", []),
-            "max_relevant_distance": getattr(config, "max_relevant_distance", 1.1),
+            "relevant_distance_max": getattr(config, "relevant_distance_max", 1.1),
+            "relevant_distance_min": getattr(config, "relevant_distance_min", 0.08),
             "sensor_mounting_angle": getattr(config, "sensor_mounting_angle", 180.0),
         }
 

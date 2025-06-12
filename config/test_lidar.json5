@@ -12,10 +12,10 @@
       "config": {
         "serial_port": "/dev/cu.usbserial-0001",
         "half_width_robot": 0.21,
-        "max_relevant_distance": 1.1,
+        "relevant_distance_max": 1.1,
+        "relevant_distance_min": 0.16,
         "sensor_mounting_angle": 172.0,
-        "angles_blanked": [[-180.0, -170.0], [160, 180]],
-        "silent": false
+        "angles_blanked": [[-180.0, -170.0], [160, 180]]
       }
     }
   ],
