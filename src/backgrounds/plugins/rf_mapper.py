@@ -111,7 +111,7 @@ class RFmapper(Background):
             if advdata.manufacturer_data:
                 for key, value in advdata.manufacturer_data.items():
                     mfgkey = hex(key).upper()
-                    mfgval = hex(value).upper()
+                    mfgval = value.hex().upper()
                     break
 
             if advdata.service_uuids:
@@ -119,14 +119,18 @@ class RFmapper(Background):
 
             # we want to update everything EXCEPT we do not want to overwrite a resolved name
             # and we do not want to replace a long mfgval with a short one
+            # we also want to update the TX power if we receive those data
             rssi = advdata.rssi
+            tx_power = advdata.tx_power
 
             if addr in self.seen_devices:
                 self.seen_devices[addr].rssi = rssi
                 self.seen_devices[addr].timestamp = time.time()
-                self.seen_devices[addr].tx_power = (
-                    advdata.tx_power if advdata.tx_power else None
-                )
+                if tx_power and self.seen_devices[addr].tx_power is None:
+                    self.seen_devices[addr].tx_power = tx_power
+                    logging.info(
+                        f"Updated BLE tx_power: {self.seen_devices[addr].tx_power}"
+                    )
                 if local_name and self.seen_devices[addr].name is None:
                     self.seen_devices[addr].name = local_name
                     logging.info(f"Updated BLE name: {self.seen_devices[addr].name}")
@@ -142,7 +146,7 @@ class RFmapper(Background):
                     address=addr,
                     name=local_name if local_name else None,
                     rssi=rssi,
-                    tx_power=advdata.tx_power if advdata.tx_power else None,
+                    tx_power=tx_power if tx_power else None,
                     service_uuid=service_uuid,
                     mfgkey=mfgkey,
                     mfgval=mfgval,
