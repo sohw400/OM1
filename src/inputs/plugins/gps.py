@@ -34,14 +34,13 @@ class Gps(FuserInput[str]):
     """
 
     def __init__(self, config: SensorConfig = SensorConfig()):
+
         super().__init__(config)
 
-        port = getattr(config, "serial_port", None)
-
-        self.gps = GpsProvider(serial_port=port)
+        self.gps = GpsProvider()
         self.io_provider = IOProvider()
         self.messages: list[Message] = []
-        self.descriptor_for_LLM = "Location and Orientation"
+        self.descriptor_for_LLM = "GPS Location"
 
     async def _poll(self) -> Optional[dict]:
         """
@@ -88,12 +87,21 @@ class Gps(FuserInput[str]):
             lon = d["gps_lon"]
             alt = d["gps_alt"]
             qua = d["gps_qua"]
-            cardinal = d["yaw_mag_cardinal"]
+
+            lat_string = "South"
+            if lat > 0:
+                lat_string = "North"
+            else:
+                lat *= -1.0
+
+            lon_string = "West"
+            if lon > 0:
+                lon_string = "East"
+            else:
+                lon *= -1.0
 
             if qua > 0:
-                msg = f"Your current GPS location is {lat}, {lon} at {alt}m altitude. "
-                if cardinal:
-                    msg += f"You are facing {cardinal}."
+                msg = f"Your rough GPS location is {lat} {lat_string}, {lon} {lon_string} at {alt}m altitude. "
                 return Message(timestamp=time.time(), message=msg)
             else:
                 return None

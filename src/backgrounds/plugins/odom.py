@@ -14,12 +14,13 @@ class Odom(Background):
 
         use_zenoh = getattr(config, "use_zenoh", False)
         self.URID = getattr(config, "URID", "")
+        unitree_ethernet = getattr(config, "unitree_ethernet", None)
         if use_zenoh:
             logging.info(
                 f"RPLidar using Zenoh and URID: {self.URID} in Odom background"
             )
 
-        self.odom_provider = OdomProvider(self.URID, use_zenoh)
+        self.odom_provider = OdomProvider(self.URID, use_zenoh, unitree_ethernet)
         if use_zenoh:
             logging.info(f"Odom using Zenoh with URID: {self.URID} in Odom background")
         else:

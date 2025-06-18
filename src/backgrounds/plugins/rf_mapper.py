@@ -23,7 +23,7 @@ class RFmapper(Background):
     Assemble location and BLE data.
     """
 
-    def __init__(self, config: BackgroundConfig):
+    def __init__(self, config: BackgroundConfig = BackgroundConfig()):
         """
         Initialize the RFmapper with configuration.
 
@@ -33,9 +33,14 @@ class RFmapper(Background):
             Configuration object for the background.
         """
         super().__init__(config)
+
+        logging.info(f"Mapper config: {config}")
+
         self.name = getattr(config, "name", "RFmapper")
         self.api_key = getattr(config, "api_key", None)
         self.URID = getattr(config, "URID", None)
+        self.unitree_ethernet = getattr(config, "unitree_ethernet", None)
+
         self.loop = asyncio.new_event_loop()
         self.thread = threading.Thread(target=self._scan_task)
         self.running = False
@@ -54,7 +59,6 @@ class RFmapper(Background):
         self.ble_scan: List[RFDataRaw] = []
 
         self.rtk_time_utc = ""
-        self.rtk_date_utc = ""
         self.rtk_lat = 0.0
         self.rtk_lon = 0.0
         self.rtk_alt = 0.0
@@ -210,19 +214,8 @@ class RFmapper(Background):
 
                             if g["gps_time_utc"] != "":
                                 self.gps_time_utc = g["gps_time_utc"]
-
-                                lat = g["gps_lat"]
-                                if lat and lat[-1] == "N":
-                                    self.gps_lat = float(lat[:-1])
-                                else:
-                                    self.gps_lat = -1.0 * float(lat[:-1])
-
-                                lon = g["gps_lon"]
-                                if lon and lon[-1] == "E":
-                                    self.gps_lon = float(lon[:-1])
-                                else:
-                                    self.gps_lon = -1.0 * float(lon[:-1])
-
+                                self.gps_lat = g["gps_lat"]
+                                self.gps_lon = g["gps_lon"]
                                 self.gps_alt = g["gps_alt"]
                                 self.yaw_mag_0_360 = g["yaw_mag_0_360"]
                                 self.gps_qua = g["gps_qua"]
@@ -230,6 +223,8 @@ class RFmapper(Background):
                             if g["ble_scan"] is not None:
                                 self.ble_scan = g["ble_scan"]
                                 logging.debug(f"RF scan results {self.ble_scan}")
+                            else:
+                                logging.warn("No nRF52 scan results")
 
                     except Exception as e:
                         logging.error(f"Error parsing GPS: {e}")
@@ -250,7 +245,6 @@ class RFmapper(Background):
                             logging.debug(f"RTK data: {r}")
                             if r:
                                 self.rtk_time_utc = r["rtk_time_utc"]
-                                self.rtk_date_utc = r["rtk_date_utc"]
                                 self.rtk_lat = r["rtk_lat"]
                                 self.rtk_lon = r["rtk_lon"]
                                 self.rtk_alt = r["rtk_alt"]
@@ -268,7 +262,6 @@ class RFmapper(Background):
                                 gps_alt=self.gps_alt,
                                 gps_qua=self.gps_qua,
                                 rtk_time_utc=self.rtk_time_utc,
-                                rtk_date_utc=self.rtk_date_utc,
                                 rtk_lat=self.rtk_lat,
                                 rtk_lon=self.rtk_lon,
                                 rtk_alt=self.rtk_alt,

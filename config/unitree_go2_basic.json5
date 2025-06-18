@@ -31,19 +31,22 @@
     {
       "name": "move_game_controller",
       "llm_label": "external movement controller",
-      "implementation": "passthrough",
       "connector": "go2_game_controller",
       "exclude_from_prompt": true
     },
     {
       "name": "speak",
       "llm_label": "speak",
-      "implementation": "passthrough",
       "connector": "elevenlabs_tts",
       "config": {
         "voice_id": "TbMNBJ27fH2U0VgpSNko",
         "silence_rate": 0, // vocalize all speech outputs
       }
+    }
+  ],
+  "backgrounds": [
+    {
+      "type": "UnitreeGo2State",
     }
   ]
 }

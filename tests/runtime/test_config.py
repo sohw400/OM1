@@ -28,7 +28,6 @@ def mock_config_data():
         "agent_actions": [
             {
                 "name": "test_action",
-                "implementation": "test_implementation",
                 "connector": "test_connector",
                 "exclude_from_prompt": False,
                 "config": {
@@ -50,7 +49,6 @@ def mock_dependencies():
             super().__init__(
                 name="mock_action",
                 llm_label="mock_llm_label",
-                implementation="mock_implementation",
                 interface="mock_interface",
                 connector="mock_connector",
                 exclude_from_prompt="mock_exclude_from_prompt",
@@ -104,14 +102,12 @@ def mock_multiple_components_config():
             {
                 "name": "test_action_1",
                 "llm_label": "emotion",
-                "implementation": "test_implementation_1",
                 "connector": "test_connector_1",
                 "exclude_from_prompt": False,
             },
             {
                 "name": "test_action_2",
                 "llm_label": "emotion",
-                "implementation": "test_implementation_2",
                 "connector": "test_connector_2",
                 "exclude_from_prompt": True,
             },

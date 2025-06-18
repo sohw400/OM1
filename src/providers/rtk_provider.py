@@ -68,18 +68,26 @@ class RtkProvider:
 
             if msg.msgID == "GGA":
                 try:
-                    self.lat = float(msg.lat)
-                    self.lon = float(msg.lon)
-                    self.alt = float(msg.alt)
+                    # round to 10 cm localisation in x,y, and 1 cm in z
+                    logging.debug(f"RTK GGA:{msg}")
+
+                    self.lat = round(float(msg.lat), 6)
+                    self.lon = round(float(msg.lon), 6)
+                    self.alt = round(float(msg.alt), 2)
+
                     self.sat = int(msg.numSV)
                     self.qua = int(msg.quality)
                     ms = msg.time.strftime("%f")[:3]
-                    self.time_utc = msg.time.strftime("%H:%M:%S") + ":" + ms
+                    # rtk_time_utc='15:51:23:800', rtk_date_utc='2025-06-17
+                    # let's combine them for consitency
+                    self.time_utc = (
+                        self.date_utc + ":" + msg.time.strftime("%H:%M:%S") + ":" + ms
+                    )
                     logging.debug(
                         (
                             f"Current precision location is {self.lat}, {self.lon} at {self.alt}m altitude. "
                             f"Quality {self.qua} with {self.sat} satellites locked. "
-                            f"The time is {self.time_utc}."
+                            f"The date and time is {self.time_utc}."
                         )
                     )
                 except Exception as e:
@@ -87,6 +95,7 @@ class RtkProvider:
             elif msg.msgID == "RMC":
                 try:
                     self.date_utc = msg.date.strftime("%Y-%m-%d")
+                    self.date_utc = self.date_utc.replace("-", ":")
                     logging.debug((f"The UTC date is {self.date_utc}."))
                 except Exception as e:
                     logging.warning(f"Failed to parse RMC message: {msg} ({e})")
@@ -100,7 +109,6 @@ class RtkProvider:
             "rtk_sat": self.sat,
             "rtk_qua": self.qua,
             "rtk_time_utc": self.time_utc,
-            "rtk_date_utc": self.date_utc,
         }
 
     def start(self):

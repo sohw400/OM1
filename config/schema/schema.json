@@ -61,11 +61,10 @@
             "type": "array",
             "items": {
                 "type": "object",
-                "required": ["name", "implementation", "connector"],
+                "required": ["name", "connector"],
                 "properties": {
                     "name": {"type": "string"},
                     "llm_label": {"type": "string"},
-                    "implementation": {"type": "string"},
                     "connector": {"type": "string"},
                     "config": {"type": "object"},
                     "exclude_from_prompt": {

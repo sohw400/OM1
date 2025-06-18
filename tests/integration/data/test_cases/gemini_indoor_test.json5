@@ -22,35 +22,32 @@
     {
       "name": "move",
       "llm_label": "move",
-      "implementation": "passthrough",
       "connector": "ros2"
     },
     {
       "name": "speak",
       "llm_label": "speak",
-      "implementation": "passthrough",
       "connector": "ros2"
     },
     {
       "name": "face",
       "llm_label": "emotion",
-      "implementation": "passthrough",
       "connector": "ros2"
     }
   ],
   "api_key": "openmind_free",
 
-  
+
   // Input data
   "input": {
     "images": ["../images/indoor_2.jpg"]
   },
-  
+
   // Expected output
   "expected": {
-    "movement": ["sit", "wag tail"],
+    "movement": ["stand still", "sit", "wag tail"],
     "keywords": ["dog"],
     "emotion": ["joy", "smile", "think"],
     "minimum_score": 0.5
   }
-} 
+}

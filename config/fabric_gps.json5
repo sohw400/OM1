@@ -56,31 +56,26 @@
     {
       name: "move",
       llm_label: "move",
-      implementation: "passthrough",
       connector: "ros2",
     },
     {
       name: "speak",
       llm_label: "speak",
-      implementation: "passthrough",
       connector: "ros2",
     },
     {
       name: "face",
       llm_label: "emotion",
-      implementation: "passthrough",
       connector: "ros2",
     },
     {
       name: "gps",
       llm_label: "gps",
-      implementation: "passthrough",
       connector: "fabric",
     },
     {
       name: "move_to_peer",
       llm_label: "move_to_peer",
-      implementation: "passthrough",
       connector: "ros2",
     },
   ],

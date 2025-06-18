@@ -10,15 +10,6 @@
   "agent_inputs": [
     {
       "type": "Gps",
-      config: {
-        "serial_port": "/dev/cu.usbmodem101"
-      }
-    },
-    {
-      "type": "Rtk",
-      config: {
-        "serial_port": "/dev/cu.usbmodem21201",
-      }
     },
   ],
   "cortex_llm": {
@@ -32,7 +23,19 @@
   ],
   "backgrounds": [
     {
-        "type": "RFmapper",
-    }
+      "type": "Rtk",
+      config: {
+        "serial_port": "/dev/cu.usbmodem21201",
+      }
+    },
+    {
+      "type": "Gps",
+      config: {
+        "serial_port": "/dev/cu.usbmodem101",
+      }
+    },
+    {
+      "type": "RFmapper"
+    },
   ]
 }

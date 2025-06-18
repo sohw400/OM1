@@ -30,7 +30,7 @@ class GpsProvider:
         Robot and sensor configuration
         """
 
-        logging.info("Booting GPS Provider")
+        logging.info(f"GPS_Provider booting GPS Provider at serial: {serial_port}")
 
         baudrate = 115200
         timeout = 1
@@ -46,11 +46,12 @@ class GpsProvider:
 
         self._gps: Optional[dict] = None
 
-        self.lat = ""
-        self.lon = ""
+        self.lat = 0.0
+        self.lon = 0.0
         self.alt = 0.0
         self.sat = 0
         self.qua = 0
+
         self.time_utc = ""
 
         self.yaw_mag_0_360 = 0.0
@@ -97,15 +98,31 @@ class GpsProvider:
                     qua = 0
                     if len(parts) > 7:
                         qua = parts[7].split(":")[1]
-                    self.lat = lat
-                    self.lon = lon
-                    self.alt = float(alt)
+
+                    if "N" in lat:
+                        self.lat = float(lat.replace("N", ""))
+                    else:
+                        self.lat = -1.0 * float(lat.replace("S", ""))
+
+                    if "W" in lon:
+                        self.lon = -1.0 * float(lon.replace("W", ""))
+                    else:
+                        self.lon = float(lon.replace("E", ""))
+
+                    # round to 10 cm localisation in x,y, and 1 cm in z
+                    self.lon = round(self.lon, 6)
+                    self.lat = round(self.lat, 6)
+                    self.alt = round(float(alt), 2)
+
                     self.sat = int(sat)
-                    self.time_utc = time
                     self.qua = int(qua)
+
+                    # turn 25 into full year -> 2025
+                    self.time_utc = "20" + time
+
                     logging.debug(
                         (
-                            f"Current location is {lat}, {lon} at {alt}m altitude. "
+                            f"Current location is {self.lat}, {self.lon} at {alt}m altitude. "
                             f"GPS Heading {heading}° with {sat} satellites locked. "
                             f"The time is {self.time_utc}. "
                             f"The fix quality is {self.qua}."
