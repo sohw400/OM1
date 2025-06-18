@@ -490,14 +490,22 @@ void loop()
       Serial.print(GPS.altitude);
       Serial.print(",SAT:"); 
       Serial.print((int)GPS.satellites);
-      Serial.print(",TIME:"); 
+      Serial.print(",TIME:");
+      Serial.print(GPS.year);
+      Serial.print(":"); 
+      Serial.print(GPS.month);
+      Serial.print(":"); 
+      Serial.print(GPS.day);
+      Serial.print(":"); 
       Serial.print(GPS.hour);
       Serial.print(":"); 
       Serial.print(GPS.minute);
       Serial.print(":"); 
       Serial.print(GPS.seconds);
       Serial.print(":"); 
-      Serial.println(GPS.milliseconds);
+      Serial.print(GPS.milliseconds);
+      Serial.print(",FIX:"); 
+      Serial.println((int)GPS.fixquality);
     } else {
       Serial.print("SAT: Waiting for GPS fix. SAT_IN_VIEW:");
       Serial.println((int)GPS.satellites);

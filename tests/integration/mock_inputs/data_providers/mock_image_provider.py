@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 import numpy as np
 from PIL import Image
@@ -21,14 +21,10 @@ class MockImageProvider:
             cls._instance = super(MockImageProvider, cls).__new__(cls)
             cls._instance.test_images = []
             cls._instance.current_index = 0
-            cls._instance.image_cache = {}  # Cache of processed images
-            cls._instance.image_metadata = {}  # Store metadata with images
             logging.info("Initialized MockImageProvider singleton")
         return cls._instance
 
-    def load_images(
-        self, images: List[Image.Image], metadata: Optional[Dict[str, Any]] = None
-    ):
+    def load_images(self, images: List[Image.Image]):
         """
         Load a sequence of test images.
 
@@ -36,13 +32,9 @@ class MockImageProvider:
         ----------
         images : List[Image.Image]
             List of PIL images to use for testing
-        metadata : Optional[Dict[str, Any]]
-            Optional metadata to associate with the images
         """
         self.test_images = images
         self.current_index = 0
-        self.image_cache = {}
-        self.image_metadata = metadata or {}
         logging.info(f"MockImageProvider loaded {len(self.test_images)} test images")
 
     def get_next_image(self) -> Optional[Image.Image]:
@@ -90,17 +82,6 @@ class MockImageProvider:
         """Reset the image provider to start from the first image again."""
         self.current_index = 0
 
-    def get_metadata(self) -> Dict[str, Any]:
-        """
-        Get the metadata associated with the images.
-
-        Returns
-        -------
-        Dict[str, Any]
-            Metadata dictionary
-        """
-        return self.image_metadata
-
 
 # Helper functions to access the singleton
 def get_image_provider() -> MockImageProvider:
@@ -108,18 +89,10 @@ def get_image_provider() -> MockImageProvider:
     return MockImageProvider()
 
 
-def load_test_images(
-    images: List[Image.Image], metadata: Optional[Dict[str, Any]] = None
-):
+def load_test_images(images: List[Image.Image]):
     """Load test images into the provider."""
     provider = get_image_provider()
-    provider.load_images(images, metadata)
-
-
-def get_next_image() -> Optional[Image.Image]:
-    """Get the next test image as a PIL Image."""
-    provider = get_image_provider()
-    return provider.get_next_image()
+    provider.load_images(images)
 
 
 def get_next_opencv_image() -> Optional[np.ndarray]:

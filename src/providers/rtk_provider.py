@@ -53,6 +53,7 @@ class RtkProvider:
         self.alt = 0.0
         self.sat = 0
         self.qua = 0
+        self.date_utc = ""
         self.time_utc = ""
 
         self.running = False
@@ -73,8 +74,7 @@ class RtkProvider:
                     self.sat = int(msg.numSV)
                     self.qua = int(msg.quality)
                     ms = msg.time.strftime("%f")[:3]
-                    strtime = msg.time.strftime("%H:%M:%S") + "." + ms
-                    self.time_utc = strtime
+                    self.time_utc = msg.time.strftime("%H:%M:%S") + ":" + ms
                     logging.debug(
                         (
                             f"Current precision location is {self.lat}, {self.lon} at {self.alt}m altitude. "
@@ -84,6 +84,12 @@ class RtkProvider:
                     )
                 except Exception as e:
                     logging.warning(f"Failed to parse GGA message: {msg} ({e})")
+            elif msg.msgID == "RMC":
+                try:
+                    self.date_utc = msg.date.strftime("%Y-%m-%d")
+                    logging.debug((f"The UTC date is {self.date_utc}."))
+                except Exception as e:
+                    logging.warning(f"Failed to parse RMC message: {msg} ({e})")
         except Exception as e:
             logging.warning(f"Error processing serial RTK input: {msg} ({e})")
 
@@ -94,6 +100,7 @@ class RtkProvider:
             "rtk_sat": self.sat,
             "rtk_qua": self.qua,
             "rtk_time_utc": self.time_utc,
+            "rtk_date_utc": self.date_utc,
         }
 
     def start(self):

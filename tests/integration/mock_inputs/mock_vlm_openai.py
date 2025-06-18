@@ -7,7 +7,9 @@ import cv2
 
 from inputs.base import SensorConfig
 from inputs.plugins.vlm_openai import VLMOpenAI
-from tests.integration.mock_inputs.mock_image_provider import get_next_opencv_image
+from tests.integration.mock_inputs.data_providers.mock_image_provider import (
+    get_next_opencv_image,
+)
 
 
 class MockVLM_OpenAI(VLMOpenAI):

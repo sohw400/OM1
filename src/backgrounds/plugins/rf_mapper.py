@@ -49,10 +49,12 @@ class RFmapper(Background):
         self.gps_lat = 0.0
         self.gps_lon = 0.0
         self.gps_alt = 0.0
+        self.gps_qua = 0
         self.yaw_mag_0_360 = 0.0
         self.ble_scan: List[RFDataRaw] = []
 
         self.rtk_time_utc = ""
+        self.rtk_date_utc = ""
         self.rtk_lat = 0.0
         self.rtk_lon = 0.0
         self.rtk_alt = 0.0
@@ -223,6 +225,7 @@ class RFmapper(Background):
 
                                 self.gps_alt = g["gps_alt"]
                                 self.yaw_mag_0_360 = g["yaw_mag_0_360"]
+                                self.gps_qua = g["gps_qua"]
 
                             if g["ble_scan"] is not None:
                                 self.ble_scan = g["ble_scan"]
@@ -247,6 +250,7 @@ class RFmapper(Background):
                             logging.debug(f"RTK data: {r}")
                             if r:
                                 self.rtk_time_utc = r["rtk_time_utc"]
+                                self.rtk_date_utc = r["rtk_date_utc"]
                                 self.rtk_lat = r["rtk_lat"]
                                 self.rtk_lon = r["rtk_lon"]
                                 self.rtk_alt = r["rtk_alt"]
@@ -262,7 +266,9 @@ class RFmapper(Background):
                                 gps_lat=self.gps_lat,
                                 gps_lon=self.gps_lon,
                                 gps_alt=self.gps_alt,
+                                gps_qua=self.gps_qua,
                                 rtk_time_utc=self.rtk_time_utc,
+                                rtk_date_utc=self.rtk_date_utc,
                                 rtk_lat=self.rtk_lat,
                                 rtk_lon=self.rtk_lon,
                                 rtk_alt=self.rtk_alt,

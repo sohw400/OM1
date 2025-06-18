@@ -49,8 +49,9 @@
   
   // Expected output
   "expected": {
-    "movement": "any",
+    "movement": ["sit", "wag tail"],
     "keywords": ["dog"],
+    "emotion": ["joy", "smile", "think"],
     "minimum_score": 0.5
   }
 } 

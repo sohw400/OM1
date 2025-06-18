@@ -50,6 +50,7 @@ class GpsProvider:
         self.lon = ""
         self.alt = 0.0
         self.sat = 0
+        self.qua = 0
         self.time_utc = ""
 
         self.yaw_mag_0_360 = 0.0
@@ -92,18 +93,22 @@ class GpsProvider:
                     heading = parts[3].split(":")[1]
                     alt = parts[4].split(":")[1]
                     sat = parts[5].split(":")[1]
+                    time = parts[6][5:]
+                    qua = 0
+                    if len(parts) > 7:
+                        qua = parts[7].split(":")[1]
                     self.lat = lat
                     self.lon = lon
                     self.alt = float(alt)
                     self.sat = int(sat)
-                    if len(parts) >= 6:
-                        time = parts[6][5:]
-                        self.time_utc = time
+                    self.time_utc = time
+                    self.qua = int(qua)
                     logging.debug(
                         (
                             f"Current location is {lat}, {lon} at {alt}m altitude. "
                             f"GPS Heading {heading}° with {sat} satellites locked. "
-                            f"The time, if available, is {self.time_utc}."
+                            f"The time is {self.time_utc}. "
+                            f"The fix quality is {self.qua}."
                         )
                     )
                 except Exception as e:
@@ -124,6 +129,7 @@ class GpsProvider:
             "gps_lon": self.lon,
             "gps_alt": self.alt,
             "gps_sat": self.sat,
+            "gps_qua": self.qua,
             "gps_time_utc": self.time_utc,
             "ble_scan": self.ble_scan,
         }
