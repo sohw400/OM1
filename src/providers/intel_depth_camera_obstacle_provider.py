@@ -2,18 +2,15 @@ import logging
 import threading
 import time
 from typing import Optional
-import cv2
 
 import numpy as np
 import pyrealsense2 as rs
 
 from providers.singleton import singleton
 
-logger = logging.getLogger(__name__)
-
 
 @singleton
-class DepthCameraProvider:
+class IntelDepthCameraObstacleProvider:
     """Provider for depth camera collision avoidance using Intel RealSense.
 
     This provider reads depth data from a downward-facing camera and detects
@@ -58,7 +55,7 @@ class DepthCameraProvider:
     def start(self):
         """Start the depth camera provider."""
         if self._running:
-            logger.warning("Depth camera provider already running")
+            logging.warning("Depth camera provider already running")
             return
 
         # Configure RealSense pipeline
@@ -76,17 +73,17 @@ class DepthCameraProvider:
         # Get depth sensor
         depth_sensor = profile.get_device().first_depth_sensor()
         self.depth_scale = depth_sensor.get_depth_scale()
-        logger.info(f"Depth scale: {self.depth_scale}")
+        logging.info(f"Depth scale: {self.depth_scale}")
 
         self._running = True
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
-        logger.info("Depth camera provider started successfully")
+        logging.info("Depth camera provider started successfully")
 
     def stop(self):
         """Stop the depth camera provider."""
-        logger.info("Stopping depth camera provider")
+        logging.info("Stopping depth camera provider")
         self._running = False
 
         if self._thread:
@@ -95,7 +92,7 @@ class DepthCameraProvider:
         if self.pipeline:
             self.pipeline.stop()
 
-        logger.info("Depth camera provider stopped")
+        logging.info("Depth camera provider stopped")
 
     def _run(self):
         """Main processing loop running in separate thread."""
@@ -120,7 +117,7 @@ class DepthCameraProvider:
                     self._depth_frame = depth_image
 
             except Exception as e:
-                logger.error(f"Error in depth processing loop: {e}")
+                logging.error(f"Error in depth processing loop: {e}")
                 time.sleep(0.1)
 
     def _process_depth_frame(self, depth_image: np.ndarray):
@@ -170,55 +167,3 @@ class DepthCameraProvider:
         """Get the latest depth frame."""
         with self._lock:
             return self._depth_frame.copy() if self._depth_frame is not None else None
-
-
-if __name__ == "__main__":
-    # Configure basic logging
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-    logger.info("Initializing Depth Camera Provider...")
-    camera_provider = DepthCameraProvider()
-
-    logger.info("Starting Depth Camera Provider...")
-    camera_provider.start()
-
-    if not camera_provider.is_running:
-        logger.error("Failed to start Depth Camera Provider. Exiting.")
-        exit()
-
-    logger.info("Depth Camera Provider started. Press 'q' in the display window to quit.")
-
-    try:
-        while True:
-            depth_frame_raw = camera_provider.depth_frame
-
-            if depth_frame_raw is not None:
-                # Normalize the depth image for display.
-                # RealSense depth frames are typically uint16, representing distance in mm.
-                # We'll clip to a max depth (e.g., 5 meters = 5000mm) and scale to 0-255 (uint8).
-                max_display_depth_mm = 5000.0
-                
-                # Ensure frame is float for division, then clip and scale
-                depth_frame_normalized = depth_frame_raw.astype(np.float32)
-                depth_frame_normalized = np.clip(depth_frame_normalized, 0, max_display_depth_mm)
-                depth_frame_normalized = (depth_frame_normalized / max_display_depth_mm) * 255.0
-                depth_frame_display = depth_frame_normalized.astype(np.uint8)
-
-                cv2.imshow('Depth Feed', depth_frame_display)
-            else:
-                # Optional: log if no frame, or just wait briefly
-                # logger.debug("No depth frame available yet.") 
-                time.sleep(0.01) # Wait a bit if no frame to reduce CPU usage in tight loop
-
-            # Check for 'q' key press to quit
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                logger.info("'q' pressed, stopping...")
-                break
-    except KeyboardInterrupt:
-        logger.info("Interrupted by user (Ctrl+C), stopping...")
-    finally:
-        logger.info("Stopping Depth Camera Provider...")
-        camera_provider.stop()
-        cv2.destroyAllWindows()
-        logger.info("Depth Camera Provider stopped and windows closed.")
-
