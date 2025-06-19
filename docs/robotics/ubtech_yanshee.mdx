@@ -1,0 +1,46 @@
+---
+title: UbTech Yanshee Robot Setup
+description: "Learn how to setup the mini humanoid robot from Ubtech to integrate with OM1."
+---
+
+## Requirements
+### Hardware
+- A laptop/PC
+- A mobile phone
+- The yanshee robot
+
+### Software
+- Yanshee mobile app
+- OM1
+
+### Installations
+- Install the yanshee mobile app on your mobile phone. 
+- Have OM1 installed on your system to remotely connect to the robot.
+
+### Steps to setup the robot
+1. After you install the yanshee mobile app, switch on your bluetooth and location -> go to Yanshee mobile application and search for your robot. Check the serial number at the back of your robot and connect to the appropriate one. Connect to the same network as your system.
+2. Once the connection has been set up, make sure you are able to play around with different functionalities available on the application.
+3. Get the robot ip -
+    - Head on to the top left corner of the application and open the menu. Go to Setup -> Robot information. Note down the IP address for future reference.
+    - Once you have the robot and your system on the same network, you’ll be able to control the robot through OM1.
+
+## Time to give a brain to your robot.
+
+### Requirements
+- get your OM1 api key from [here](https://portal.openmind.org/)
+
+### Install UbTech libraries
+```python 
+# Activate virtual env 
+uv venv
+pip install git+https://github.com/OpenmindAGI/third_party_platforms.git#subdirectory=ubtech/ubtech
+```
+### Steps   
+- Setup om1 key and robot ip address in the config file. To know how to work on the config file or update an existing one, refer [here](concepts/configuration).
+- Install the required dependencies using `uv install` or `pip install -r requirements.txt`.
+- Run the agent using `uv run src/run.py ubtech_yanshee`.
+- You will now be able to make the robot take actions lie walk forward, walk backward, turn right,turn left, bow, crouch and more via voice commands. You can also have a conversation with it. 
+- Try tweaking the existing system prompt in the config file to make it more intelligent.
+- If you want to try and add new actions of functionalities, head on to the development section [here](development/development.md
+
+

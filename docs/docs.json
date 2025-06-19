@@ -2,6 +2,9 @@
     "theme": "mint",
     "name": "OpenMind",
     "favicon": "/assets/favicon.png",
+    "background":{
+      "decoration": "windows"
+    },
     "colors": {
       "primary": "#FD015F",
       "light": "#E10054",
@@ -51,14 +54,18 @@
               ]
             },
             {
-              "group": "Sample Use Case",
+              "group": "Robot Integration",
               "pages": [
-                "quick start/robot_setup",
-                "quick start/OM1_integration"
+                "robotics/tesla_dimo",
+                "robotics/turtlebot4_zenoh",
+                "robotics/unitree_g1_humanoid",
+                "robotics/unitree_go2_quadruped",
+                "robotics/ubtech_yanshee",
+                "robotics/new_robot_integration"
               ]
             },
             {
-              "group": "Integration",
+              "group": "LLM Integration",
               "pages": [
                 "llm/llm-integration",
                 "llm/openai-integration"
@@ -86,15 +93,6 @@
                 "input-plugin/input-plugin-overview",
                 "input-plugin/speech-recognition",
                 "input-plugin/webcam-input"
-              ]
-            },
-            {
-              "group": "More Examples",
-              "pages": [
-                "robotics/tesla_dimo",
-                "robotics/turtlebot4_zenoh",
-                "robotics/unitree_g1_humanoid",
-                "robotics/unitree_go2_quadruped"
               ]
             }
           ]
@@ -144,17 +142,22 @@
           ]
         },
         {
-          "tab": "Help",
-          "pages": [
-            "help/faq",
-            "help/community-support"
-          ]
-        },
-        {
-          "tab": "Miscellaneous",
-          "pages": [
-            "miscellaneous/asimov_governance",
-            "miscellaneous/coinbase-x402"
+          "tab":"More Info",
+          "groups":[
+            {
+              "group": "Help",
+              "pages": [
+                "help/faq",
+                "help/community-support"
+              ]
+            },
+            {
+              "group": "Miscellaneous",
+              "pages": [
+                "miscellaneous/asimov_governance",
+                "miscellaneous/coinbase-x402"
+              ]
+            }
           ]
         }
       ],
