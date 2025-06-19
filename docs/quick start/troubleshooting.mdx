@@ -1,0 +1,25 @@
+---
+title: Troubleshooting Guide
+description: "Steps to troubleshoot common issues with the OM1"
+---
+### Common Issues & Quick Fixes:
+| Issue              | Likely Cause              | Quick Fix                            |
+|--------------------|---------------------------|--------------------------------------|
+| No Speech          | Permission issues         | Check the settings                   |
+| No speech recognition | Microphone not configured | Check audio input settings        |
+| Robot not moving   | Connection issue          | Restart OM1-robot connection         |
+| Delayed responses  | Processing overload       | Reduce complexity of responses       |
+
+
+### OpenSSL issue 
+```python
+uv pip install certifi
+export SSL_CERT_FILE=$(python3 -m certifi)   
+export REQUESTS_CA_BUNDLE=$(python3 -m certifi)   
+```
+
+### Install the UbTech libraries
+```python
+# Activate virtual env - uv venv
+pip install git+https://github.com/OpenmindAGI/third_party_platforms.git#subdirectory=ubtech/ubtech
+```

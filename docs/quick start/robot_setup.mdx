@@ -1,0 +1,35 @@
+---
+title: UbTech Yanshee Robot Setup
+description: "Learn how to setup the mini humanoid robot from Ubtech to integrate with OM1."
+---
+
+## Requirements
+### Hardware
+- A laptop/PC
+- A mobile phone
+- The yanshee robot
+
+### Software
+- RealVNC
+https://www.realvnc.com/en/connect/download/viewer/?lai_vid=NXj4kJAMEC1W&lai_sr=5-9&lai_sl=l&lai_na=541
+- Yanshee mobile app
+
+### Installations
+- Install the yanshee mobile app on your mobile phone. 
+- Install RealVNC on your system
+
+### Steps
+1. After the installations are complete, switch on your bluetooth -> go to Yanshee mobile application and search for your robot. Check the serial number at the back of your robot and connect to the appropriate one.
+2. Once the connection has been set up, make sure you are able to play around with different functionalities available on the application.
+3. Get the robot ip -
+    - Head on to the top left corner of the application and open the menu. Go to Setup -> Robot information. Note down the IP address for future reference.
+    - Go to your system, open RealVNC, and provide necessary permissions. Once the application is launched, provide the robot IP address to the input box. (Make sure the system is connected to the same network the robot is connected to.)
+    - Next up, you will be able to access the robot’s raspberry pi through your system.
+    - Once you have the robot and your system on the same network, you’ll be able to control the robot through your system.
+4. Locate the ubtech folder and run the following commands one by one
+    - uv venv -  a .venv folder would be generated (create a virtual environment)
+    - source .venv/bin/activate  - Activate the virtual environment
+    - uv pip install -r requirements.txt -  install the packages
+    - uv pip install -e .   
+    - Run test.py (play around with the code and make the robot do different actions.)
+

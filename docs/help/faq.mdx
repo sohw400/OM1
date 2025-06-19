@@ -1,0 +1,31 @@
+---
+title: FAQ
+description: "Frequently Asked Questions about OpenMind (OM1)"
+---
+
+### What is OpenMind (OM1)?
+
+Openmind OM1 is a modular AI runtime that empowers developers to create and deploy multimodal AI agents seamlessly across both digital environments and physical robots.
+
+### What is the difference between OpenMind and other AI runtimes?
+
+OpenMind is a modular AI runtime that allows you to build and deploy AI agents and robots with capabilities including movement and speech. 
+It is designed to be 
+- easy to understand, 
+- easy to use, and 
+- easy to deploy.
+
+### How is OM1 compared to end-to-end models? 
+OM1 is built for flexibility, with support for end-to-end models. Unlike most AI systems that do everything inside a “black box,” OM1 breaks intelligence into clear layers, like sensing, planning, and acting, for users to integrate to their preferred parts of the stack. This modular approach makes it easier to upgrade, customize, and connect with different robots, sensors, and new technologies over time.
+
+###What modules/SDKs does OM1 support? 
+OM1 isn’t tied to any kind of hardware or AI method. It’s designed to be adaptable for any sensor (audio, LiDAR, camera, GPS), SDK, external knowledge bases, and Large Language Models (LLMs).
+
+### What are the recommended hardware specs for OM1?
+4Gb memory, 8Gb storage, plus the sensors (might integrate with robots) for robots like webcam, microphone, speakers, LiDAR, and other data inputs. 
+
+### How is OM1 different from Robot Operating System (ROS)? 
+OM1 is a cross-platform operating system with tightly integrated cloud infrastructure that runs on Nvidia, Mac, Raspberry Pi, etc. and lives on top of traditional middleware including ROS. In other words, OM1 doesn't rely on ROS, and OM1 supports multiple communication protocols like websocket, CycloneDDS and Zenoh, as well as ROS. 
+
+### How can I debug and monitor execution inside OM1?
+You can do everything from the OM1 Portal. Our tele-ops and simulation platform can help diagnose issues on the fly, while an internal eval tool can surface edge-case failure on our end (we’re polishing up the system to open it up to end users soon). Since the codebase is public, the robot owner can easily access the machine and inspect the logs as well. 
