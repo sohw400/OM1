@@ -9,8 +9,11 @@ from actions.base import ActionConfig, ActionConnector, MoveCommand
 from actions.move_go2_autonomy.interface import MoveInput
 from providers.odom_provider import OdomProvider, RobotState
 from providers.rplidar_provider import RPLidarProvider
+from providers.unitree_go2_sport_client_provider import (
+    UnitreeGo2Action,
+    UnitreeGo2SportClientProvider,
+)
 from providers.unitree_go2_state_provider import UnitreeGo2StateProvider
-from unitree.unitree_sdk2py.go2.sport.sport_client import SportClient
 
 
 class MoveUnitreeSDKConnector(ActionConnector[MoveInput]):
@@ -33,19 +36,10 @@ class MoveUnitreeSDKConnector(ActionConnector[MoveInput]):
         self.lidar = RPLidarProvider()
         self.unitree_go2_state = UnitreeGo2StateProvider()
 
-        # create sport client
-        self.sport_client = None
-        try:
-            self.sport_client = SportClient()
-            self.sport_client.SetTimeout(10.0)
-            self.sport_client.Init()
-            self.sport_client.StopMove()
-            self.sport_client.Move(0.05, 0, 0)
-            logging.info("Autonomy Unitree sport client initialized")
-        except Exception as e:
-            logging.error(f"Error initializing Unitree sport client: {e}")
-
         unitree_ethernet = getattr(config, "unitree_ethernet", None)
+        self.unitree_go2_sport_client = UnitreeGo2SportClientProvider(
+            channel=unitree_ethernet
+        )
         self.odom = OdomProvider(channel=unitree_ethernet)
         logging.info(f"Autonomy Odom Provider: {self.odom}")
 
@@ -130,18 +124,31 @@ class MoveUnitreeSDKConnector(ActionConnector[MoveInput]):
         """
         logging.info(f"_move_robot: vx={vx}, vy={vy}, vturn={vturn}")
 
-        if not self.sport_client:
+        if not self.unitree_go2_sport_client.is_running:
             return
 
         if self.odom.position["body_attitude"] != RobotState.STANDING:
             return
 
         if self.unitree_go2_state.state == "jointLock":
-            self.sport_client.BalanceStand()
+            self.unitree_go2_sport_client.add_action(
+                UnitreeGo2Action(action="BalanceStand")
+            )
 
         try:
-            logging.info(f"self.sport_client.Move: vx={vx}, vy={vy}, vturn={vturn}")
-            self.sport_client.Move(vx, vy, vturn)
+            logging.info(
+                f"unitree_go2_sport_client move: vx={vx}, vy={vy}, vturn={vturn}"
+            )
+            self.unitree_go2_sport_client.add_action(
+                UnitreeGo2Action(
+                    action="Move",
+                    args={
+                        "vx": vx,
+                        "vy": vy,
+                        "vturn": vturn,
+                    },
+                )
+            )
         except Exception as e:
             logging.error(f"Error moving robot: {e}")
 

@@ -1,10 +1,13 @@
 import logging
-import threading
 import time
 
 from actions.base import ActionConfig, ActionConnector
 from actions.move_game_controller.interface import IDLEInput
 from providers.odom_provider import OdomProvider, RobotState
+from providers.unitree_go2_sport_client_provider import (
+    UnitreeGo2Action,
+    UnitreeGo2SportClientProvider,
+)
 from providers.unitree_go2_state_provider import UnitreeGo2StateProvider
 from unitree.unitree_sdk2py.go2.sport.sport_client import SportClient
 
@@ -75,10 +78,11 @@ class Go2GameControllerConnector(ActionConnector[IDLEInput]):
         self.turn_speed = 0.4
 
         unitree_ethernet = getattr(config, "unitree_ethernet", None)
+        self.unitree_go2_sport_client = UnitreeGo2SportClientProvider(
+            channel=unitree_ethernet
+        )
         self.odom = OdomProvider(channel=unitree_ethernet)
         self.unitree_state_provider = UnitreeGo2StateProvider()
-
-        self.thread_lock = threading.Lock()
 
     def _init_controller(self) -> None:
         """Initialize or reinitialize the game controller."""
@@ -151,58 +155,6 @@ class Go2GameControllerConnector(ActionConnector[IDLEInput]):
                         )
                         continue
 
-    def _execute_command_thread(self, command: str) -> None:
-        try:
-            if (
-                command == "StandUp"
-                and self.odom.position["body_attitude"] is RobotState.STANDING
-            ):
-                logging.info("Already standing, skipping command")
-                return
-            elif (
-                command == "StandDown"
-                and self.odom.position["body_attitude"] is RobotState.SITTING
-            ):
-                logging.info("Already sitting, skipping command")
-                return
-
-            if self.unitree_state_provider.state == "jointLock":
-                self.sport_client.BalanceStand()
-                self.sport_client.Move(0.05, 0, 0)
-
-            code = getattr(self.sport_client, command)()
-            logging.info(f"Unitree command {command} executed with code {code}")
-
-            if self.unitree_state_provider.state == "jointLock":
-                self.sport_client.BalanceStand()
-                self.sport_client.Move(0.05, 0, 0)
-
-        except Exception as e:
-            logging.error(f"Error in command thread {command}: {e}")
-        finally:
-            self.thread_lock.release()
-
-    def _execute_sport_command_sync(self, command: str) -> None:
-
-        logging.debug(f"_execute_sport_command_sync({command})")
-
-        if self.sport_client is None:
-            logging.debug("No sport client, skipping")
-            return
-
-        if not self.thread_lock.acquire(blocking=False):
-            logging.debug("Action already in progress, skipping")
-            return
-
-        try:
-            thread = threading.Thread(
-                target=self._execute_command_thread, args=(command,), daemon=True
-            )
-            thread.start()
-        except Exception as e:
-            logging.error(f"Error executing Unitree command {command}: {e}")
-            self.thread_lock.release()
-
     async def connect(self, output_interface: IDLEInput) -> None:
         """
         Connect to actions from LLM
@@ -217,6 +169,50 @@ class Go2GameControllerConnector(ActionConnector[IDLEInput]):
         None
         """
         pass
+
+    def _act_robot(self, action: str) -> None:
+        """
+        Act on the robot using the sport client.
+
+        Parameters
+        ----------
+        action : str
+            The action to perform on the robot.
+
+        Returns
+        -------
+        None
+        """
+        if (
+            action == "StandUp"
+            and self.odom.position["body_attitude"] is RobotState.STANDING
+        ):
+            logging.info("Already standing, skipping command")
+            return
+        elif (
+            action == "StandDown"
+            and self.odom.position["body_attitude"] is RobotState.SITTING
+        ):
+            logging.info("Already sitting, skipping command")
+            return
+
+        if self.unitree_state_provider.state == "jointLock":
+            self.unitree_go2_sport_client.add_action(
+                UnitreeGo2Action(action="BalanceStand")
+            )
+            self.unitree_go2_sport_client.add_action(
+                UnitreeGo2Action(action="Move", args={"vx": 0.05, "vy": 0, "vturn": 0})
+            )
+
+        self.unitree_go2_sport_client.add_action(UnitreeGo2Action(action=action))
+
+        if self.unitree_state_provider.state == "jointLock":
+            self.unitree_go2_sport_client.add_action(
+                UnitreeGo2Action(action="BalanceStand")
+            )
+            self.unitree_go2_sport_client.add_action(
+                UnitreeGo2Action(action="Move", args={"vx": 0.05, "vy": 0, "vturn": 0})
+            )
 
     def _move_robot(self, vx, vy, vturn=0.0) -> None:
         """
@@ -413,11 +409,11 @@ class Go2GameControllerConnector(ActionConnector[IDLEInput]):
                 # button A
                 if self.button_value == 1:
                     logging.info("Controller unitree: stand_up")
-                    self._execute_sport_command_sync("StandUp")
+                    self._act_robot("StandUp")
                 # button B
                 elif self.button_value == 2:
                     logging.info("Controller unitree: lay_down")
-                    self._execute_sport_command_sync("StandDown")
+                    self._act_robot("StandDown")
 
                 # # X button
                 # elif button_value == 8:

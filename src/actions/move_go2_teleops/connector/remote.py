@@ -8,8 +8,11 @@ from om1_utils import ws
 from actions.base import ActionConfig, ActionConnector
 from actions.move_go2_teleops.interface import MoveInput
 from providers import CommandStatus
+from providers.unitree_go2_sport_client_provider import (
+    UnitreeGo2Action,
+    UnitreeGo2SportClientProvider,
+)
 from providers.unitree_go2_state_provider import UnitreeGo2StateProvider
-from unitree.unitree_sdk2py.go2.sport.sport_client import SportClient
 
 
 class RobotState(Enum):
@@ -35,15 +38,6 @@ class MoveGo2Remote(ActionConnector[MoveInput]):
 
         api_key = getattr(config, "api_key", None)
 
-        self.sport_client = None
-        try:
-            self.sport_client = SportClient()
-            self.sport_client.SetTimeout(10.0)
-            self.sport_client.Init()
-            logging.info("Unitree sport client initialized")
-        except Exception as e:
-            logging.error(f"Error initializing Unitree sport client: {e}")
-
         self.ws_client = ws.Client(
             url=f"wss://api.openmind.org/api/core/teleops/action?api_key={api_key}"
         )
@@ -51,6 +45,11 @@ class MoveGo2Remote(ActionConnector[MoveInput]):
         self.ws_client.register_message_callback(self._on_message)
 
         self.unitree_state_provider = UnitreeGo2StateProvider()
+
+        unitree_ethernet = getattr(config, "unitree_ethernet", None)
+        self.unitree_go2_sport_client = UnitreeGo2SportClientProvider(
+            channel=unitree_ethernet
+        )
 
     def _on_message(self, message: str) -> None:
         """
@@ -61,17 +60,26 @@ class MoveGo2Remote(ActionConnector[MoveInput]):
         message : str
             The incoming message.
         """
-        if self.sport_client is None:
-            logging.info("No open Unitree sport client, returning")
+        if not self.unitree_go2_sport_client.is_running:
+            logging.error("Unitree Go2 Sport Client is not running.")
             return
 
         if self.unitree_state_provider.state == "jointLock":
-            self.sport_client.BalanceStand()
+            self.unitree_go2_sport_client.add_action(
+                UnitreeGo2Action(action="BalanceStand")
+            )
 
         try:
             command_status = CommandStatus.from_dict(json.loads(message))
-            self.sport_client.Move(
-                command_status.vx, command_status.vy, command_status.vyaw
+            self.unitree_go2_sport_client.add_action(
+                UnitreeGo2Action(
+                    action="Move",
+                    args={
+                        "vx": command_status.vx,
+                        "vy": command_status.vy,
+                        "vyaw": command_status.vyaw,
+                    },
+                )
             )
             logging.info(
                 f"Published command: {command_status.to_dict()} - latency: {(time.time() - float(command_status.timestamp)):.3f} seconds"
