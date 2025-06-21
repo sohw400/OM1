@@ -263,7 +263,7 @@ class Go2GameControllerConnector(ActionConnector[IDLEInput]):
         -------
         None
         """
-        time.sleep(0.1)
+        time.sleep(0.05)
         logging.debug("Gamepad tick")
 
         data = None
@@ -283,6 +283,37 @@ class Go2GameControllerConnector(ActionConnector[IDLEInput]):
                 if self.gamepad:
                     logging.info("Controller reconnected successfully")
                 return
+
+        # special case for no data if the p-pad or LT and RT is kept pressed
+        if data is None or len(data) == 0:
+            if self.rt_previous > 0 or self.lt_previous > 0:
+                # we always excute the left turn first
+                if self.lt_previous > 0:
+                    logging.info(
+                        "Left Trigger is kept pressed - Counter-clockwise rotation"
+                    )
+                    self._move_robot(0.0, 0.0, self.turn_speed)
+                    return
+                if self.rt_previous > 0:
+                    logging.info("Right Trigger is kept pressed - Clockwise rotation")
+                    self._move_robot(0.0, 0.0, -self.turn_speed)
+                    return
+
+            if self.d_pad_previous > 0:
+                if self.d_pad_previous == 1:  # Up
+                    logging.info("D-pad UP - Moving forward")
+                    self._move_robot(self.move_speed, 0.0)
+                elif self.d_pad_previous == 5:  # Down
+                    logging.info("D-pad DOWN - Moving backward")
+                    self._move_robot(-self.move_speed, 0.0)
+                elif self.d_pad_previous == 7:  # Left
+                    logging.info("D-pad LEFT - Moving left")
+                    self._move_robot(0.0, self.move_speed)
+                elif self.d_pad_previous == 3:  # Right
+                    logging.info("D-pad RIGHT - Moving right")
+                    self._move_robot(0.0, -self.move_speed)
+
+            return
 
         if data and len(data) > 0:
 
@@ -357,11 +388,9 @@ class Go2GameControllerConnector(ActionConnector[IDLEInput]):
             self.lt_previous = lt
 
             if move_triggered_RTLT:
-                # update the previous value of the dpad
-                self.d_pad_previous = self.d_pad_value
                 # update the previous value of the button
                 self.button_previous = self.button_value
-                # and return, since we just issued a move command in this tick
+                # and return, since we just issued a action command in this tick
                 return
 
             # Control robot movement based on D-pad
@@ -384,9 +413,10 @@ class Go2GameControllerConnector(ActionConnector[IDLEInput]):
                 move_triggered_dpad = True
                 self._move_robot(0.0, -self.move_speed)
             elif self.d_pad_previous > 0 and self.d_pad_value == 0:
-                # Usewr just released DPAD
-                logging.debug("D-pad released - Stopping movement")
+                # User just released DPAD
+                logging.info("D-pad released - Stopping movement")
                 move_triggered_dpad = True
+                self._move_robot(0.0, 0.0)
 
             # update the value of d_pad_previous
             self.d_pad_previous = self.d_pad_value
