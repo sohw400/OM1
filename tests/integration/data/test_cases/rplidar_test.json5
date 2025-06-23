@@ -33,12 +33,6 @@
     }
   },
   "agent_actions": [
-    {
-      "name": "move_turtle",
-      "llm_label": "move",
-      "implementation": "passthrough",
-      "connector": "zenoh"
-    },
   ],
   "api_key": "openmind_free",
 
