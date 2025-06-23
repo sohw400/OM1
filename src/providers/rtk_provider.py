@@ -37,6 +37,7 @@ class RtkProvider:
             self.serial_connection = serial.Serial(
                 serial_port, baudrate, timeout=timeout
             )
+            self.serial_connection.reset_input_buffer()
             logging.info(f"Connected to {serial_port} at {baudrate} baud")
         except serial.SerialException as e:
             logging.error(f"Error: {e}")
@@ -66,13 +67,29 @@ class RtkProvider:
         try:
             logging.debug(f"RTK:{msg}")
 
+            # NMEA-GN-GLL
+            # Description:
+            # Standard NMEA: Geographic position latitude and longitude. Latitude and longitude of vessel position, time of position fix and status.
+
+            # NMEA-GN-RMC
+            # Description:
+            # Standard NMEA: Recommended minimum specific GNSS data. This message contains time, date, position (in LLH coordinates),
+            # positioning mode, course over ground (COG), and speed (SOG) data provided by the GNSS receiver. RMC is the
+            # recommended minimum navigation data to be provided by the selected source.
+
+            # NMEA-GN-GGA
+            # Description:
+            # Standard NMEA: Global positioning system fix data. This message contains time, date,
+            # position (in LLH coordinates), fix quality, number of satellites, and horizontal dilution of
+            # precision (HDOP) data provided by the selected source.
+
             if msg.msgID == "GGA":
                 try:
                     # round to 10 cm localisation in x,y, and 1 cm in z
                     logging.debug(f"RTK GGA:{msg}")
 
-                    self.lat = round(float(msg.lat), 6)
-                    self.lon = round(float(msg.lon), 6)
+                    self.lat = round(float(msg.lat), 8)
+                    self.lon = round(float(msg.lon), 8)
                     self.alt = round(float(msg.alt), 2)
 
                     self.sat = int(msg.numSV)
@@ -85,9 +102,8 @@ class RtkProvider:
                     )
                     logging.debug(
                         (
-                            f"Current precision location is {self.lat}, {self.lon} at {self.alt}m altitude. "
-                            f"Quality {self.qua} with {self.sat} satellites locked. "
-                            f"The date and time is {self.time_utc}."
+                            f"RTK:{self.lat},{self.lon},ALT:{self.alt},"
+                            f"QUA:{self.qua},SAT:{self.sat},TIME:{self.time_utc}"
                         )
                     )
                 except Exception as e:
@@ -131,9 +147,14 @@ class RtkProvider:
 
             if self.serial_connection and self.nmr:
                 try:
-                    (raw_data, parsed_data) = self.nmr.read()
-                    if parsed_data:
-                        self.magRTKProcessor(parsed_data)
+                    raw_data = b"$GQGSV,1,1,00,0*64\r\n"
+                    while raw_data:
+                        (raw_data, msg) = self.nmr.read()
+                        # logging.info(f"ETK buffer: {raw_data}")
+                        if msg.msgID == "GGA" or msg.msgID == "RMC":
+                            self.magRTKProcessor(msg)
+                        # else:
+                        #     logging.info("clearing ETK buffer")
                 except Exception:
                     pass
 
@@ -141,8 +162,7 @@ class RtkProvider:
                 # data = self.serial_connection.readline().decode("utf-8").strip()
                 # logging.debug(f"Serial RTK: {data}")
                 # self.magRTKProcessor(data)
-
-            time.sleep(0.05)
+            time.sleep(0.1)
 
     def stop(self):
         """

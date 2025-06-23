@@ -328,8 +328,9 @@ class OdomProvider:
             self.yaw_odom_0_360 = round(self.yaw_odom_m180_p180 + 180.0, 2)
 
             # current position in world frame
-            self.x = round(pose.position.x, 2)
-            self.y = round(pose.position.y, 2)
+            self.x = round(pose.position.x, 3)
+            self.y = round(pose.position.y, 3)
+            logging.debug(f"odom:{self.x }x {self.y}y")
 
     @property
     def position(self) -> dict:

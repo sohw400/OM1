@@ -8,8 +8,15 @@
   "system_governance": "Here are the laws that govern your actions. Do not violate these laws.\nFirst Law: A robot cannot harm a human or allow a human to come to harm.\nSecond Law: A robot must obey orders from humans, unless those orders conflict with the First Law.\nThird Law: A robot must protect itself, as long as that protection doesn't conflict with the First or Second Law.\nThe First Law is considered the most important, taking precedence over the second and third laws.",
   "system_prompt_examples": "",
   "agent_inputs": [
+    //{
+    //  "type": "VLMVila"
+    //},
     {
-      "type": "VLMVila"
+      "type": "VLM_Local_YOLO",
+      "config": {
+        "camera_index": 0,
+        "log_file": true
+      }
     },
     {
       "type": "UnitreeGo2Battery"
@@ -19,7 +26,6 @@
     //},
     {
       "type": "Gps",
-
     },
     {
       "type": "Rtk",
@@ -35,7 +41,7 @@
     "type": "OpenAILLM",
     "config": {
       "agent_name": "Spot",
-      "history_length": 2
+      "history_length": 0
     }
   },
   "agent_actions": [
@@ -87,8 +93,8 @@
         "relevant_distance_max": 1.1,
         "relevant_distance_min": 0.20,
         "sensor_mounting_angle": 172.0,
-        "angles_blanked": []
-        //"angles_blanked": [[-180.0, -140.0], [140, 180]]
+        "angles_blanked": [],
+        "log_file": true,
       }
     },
     {

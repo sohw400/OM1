@@ -40,6 +40,7 @@ class GpsProvider:
             self.serial_connection = serial.Serial(
                 serial_port, baudrate, timeout=timeout
             )
+            self.serial_connection.reset_input_buffer()
             logging.info(f"Connected to {serial_port} at {baudrate} baud")
         except serial.SerialException as e:
             logging.error(f"Error: {e}")
@@ -211,7 +212,7 @@ class GpsProvider:
                 data = self.serial_connection.readline().decode("utf-8").strip()
                 logging.debug(f"Serial GPS/MAG: {data}")
                 self.magGPSProcessor(data)
-            time.sleep(0.05)
+            time.sleep(0.1)
 
     def stop(self):
         """
