@@ -40,6 +40,7 @@ class RPLidar(Background):
             "relevant_distance_max": getattr(config, "relevant_distance_max", 1.1),
             "relevant_distance_min": getattr(config, "relevant_distance_min", 0.08),
             "sensor_mounting_angle": getattr(config, "sensor_mounting_angle", 180.0),
+            "log_file": getattr(config, "log_file", False),
         }
 
         # Handle Zenoh-specific configuration

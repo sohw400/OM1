@@ -59,29 +59,26 @@ TEST_CASE="coco_indoor_detection" uv run pytest -m "integration" tests/integrati
     {
       "name": "move",
       "llm_label": "move",
-      "implementation": "passthrough",
       "connector": "ros2"
     },
     {
       "name": "speak",
       "llm_label": "speak",
-      "implementation": "passthrough",
       "connector": "ros2"
     },
     {
       "name": "face",
       "llm_label": "emotion",
-      "implementation": "passthrough",
       "connector": "ros2"
     }
   ],
   "api_key": "openmind_free",
-  
+
   // Input data
   "input": {
     "images": ["../vlm_test/image1.png", "../vlm_test/image2.png"],
   },
-  
+
   // Expected output
   "expected": {
     "movement": "turn_left | turn_right | move_forward",

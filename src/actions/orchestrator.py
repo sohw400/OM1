@@ -31,15 +31,6 @@ class ActionOrchestrator:
         Start actions and connectors in separate threads
         """
         for agent_action in self._config.agent_actions:
-            if agent_action.llm_label not in self._impl_threads:
-                impl_thread = threading.Thread(
-                    target=self._run_implementation_loop,
-                    args=(agent_action,),
-                    daemon=True,
-                )
-                self._impl_threads[agent_action.llm_label] = impl_thread
-                impl_thread.start()
-
             if agent_action.llm_label not in self._connector_threads:
                 conn_thread = threading.Thread(
                     target=self._run_connector_loop, args=(agent_action,), daemon=True
@@ -48,16 +39,6 @@ class ActionOrchestrator:
                 conn_thread.start()
 
         return asyncio.Future()  # Return future for compatibility
-
-    def _run_implementation_loop(self, action: AgentAction):
-        """
-        Thread-based implementation loop
-        """
-        while True:
-            try:
-                action.implementation.tick()
-            except Exception as e:
-                logging.error(f"Error in implementation {action.llm_label}: {e}")
 
     def _run_connector_loop(self, action: AgentAction):
         """
@@ -132,7 +113,5 @@ class ActionOrchestrator:
         input_interface = T.get_type_hints(agent_action.interface)["input"](
             **{"action": action.value}
         )
-        action_response = await agent_action.implementation.execute(input_interface)
-        logging.debug(f"Action {agent_action.llm_label} returned {action_response}")
-        await agent_action.connector.connect(action_response)
-        return action_response
+        await agent_action.connector.connect(input_interface)
+        return input_interface

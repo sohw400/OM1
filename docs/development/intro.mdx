@@ -16,32 +16,33 @@ Whether you're just getting started with OM1 or looking to optimize an existing 
 
 ## CLI
 
-The OpenMind OS provides a command-line interface (CLI) to manage agents and projects. 
+The OpenMind OS provides a command-line interface (CLI) to manage agents and projects.
 
 The main entry point is `src/run.py` which provides the following commands:
 
 - `start`: Start an agent with a specified config
 
 ```bash Start an agent with a specified config
-python src/run.py start [config_name] [--debug]
+python src/run.py start [config_name] [--log-level] [--log-to-file]
 ```
 
 - `config_name`: Name of the config file (without .json5 extension) in the config directory
 
-- `--debug`: Optional flag to enable debug logging
+- `--log-level`: Optional log level (default: INFO). Use `DEBUG` for detailed logs.
+- `--log-to-file`: Optional flag to log to a file (default: False). If set, logs will be written to `logs/{config_name}.log`.
 
 ## Linting and Testing
 
 Maintaining code quality and ensuring your agents work correctly is crucial when developing with OpenMind OS (OM1). This section covers recommended linting and testing practices to help you catch errors early, maintain code consistency, and validate agent behavior before deployment.
 
-To check/format your code, run: 
+To check/format your code, run:
 ```bash
 uv run ruff check . --fix && uv run black . && uv run isort .
 ```
 
 To automatically run the lint check before committing, install [pre-commit](https://pre-commit.com/) and execute `pre-commit install`. This ensures that pre-commit checks run before each commit. Additionally, you can manually trigger all checks by running `pre-commit run --all-files`.
 
-### Unit Testing 
+### Unit Testing
 
 To unit test the system, run:
 ```bash

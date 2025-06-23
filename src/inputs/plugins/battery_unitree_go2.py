@@ -84,9 +84,9 @@ class UnitreeGo2Battery(FuserInput[str]):
 
     def LowStateMessageHandler(self, msg: LowState_):
         self.low_state = msg
-        self.battery_percentage = float(msg.bms_state.soc)
-        self.battery_voltage = float(msg.power_v)
-        self.battery_amperes = float(msg.power_a)
+        self.battery_percentage = round(float(msg.bms_state.soc), 2)
+        self.battery_voltage = round(float(msg.power_v), 2)
+        self.battery_amperes = round(float(msg.power_a), 2)
         self.battery_t = int((msg.temperature_ntc1 + msg.temperature_ntc2) / 2)
 
     async def report_status(self):

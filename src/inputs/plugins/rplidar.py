@@ -48,14 +48,11 @@ class RPLidar(FuserInput[str]):
         # Buffer for storing messages
         self.message_buffer: Queue[str] = Queue()
 
-        logging.info(f"Config: {self.config}")
-
         # Build lidar configuration from config
         lidar_config = self._extract_lidar_config(config)
 
         # Initialize RPLidar Provider
         self.lidar: RPLidarProvider = RPLidarProvider(**lidar_config)
-
         self.lidar.start()
 
         self.descriptor_for_LLM = "Information about objects and walls around you, to plan your movements and avoid bumping into things."

@@ -89,6 +89,7 @@ float mag_softiron[]  = { 1.0, 0.0, 0.0, \
                           0.0, 0.0, 1.0 }; 
 float gyro_zerorate[] = { 0.0, 0.0, 0.0 }; // in Radians/s
 
+float headingDegrees = 0.0;
 //declination = +12° 50'
 
 #include "quaternionFilters.h"
@@ -460,6 +461,9 @@ void loop()
   if (millis() - timerGPS > 1000) {
     timerGPS = millis(); // reset the timer
   
+    Serial.print("HDG:");
+    Serial.println(headingDegrees);
+
     if (GPS.fix && CALIBRATION == false) {
 
       float latDecimal = ToDecimalDegrees(GPS.latitude);
@@ -490,21 +494,29 @@ void loop()
       Serial.print(GPS.altitude);
       Serial.print(",SAT:"); 
       Serial.print((int)GPS.satellites);
-      Serial.print(",TIME:"); 
+      Serial.print(",TIME:");
+      Serial.print(GPS.year);
+      Serial.print(":"); 
+      Serial.print(GPS.month);
+      Serial.print(":"); 
+      Serial.print(GPS.day);
+      Serial.print(":"); 
       Serial.print(GPS.hour);
       Serial.print(":"); 
       Serial.print(GPS.minute);
       Serial.print(":"); 
       Serial.print(GPS.seconds);
       Serial.print(":"); 
-      Serial.println(GPS.milliseconds);
+      Serial.print(GPS.milliseconds);
+      Serial.print(",FIX:"); 
+      Serial.println((int)GPS.fixquality);
     } else {
       Serial.print("SAT: Waiting for GPS fix. SAT_IN_VIEW:");
       Serial.println((int)GPS.satellites);
     }
   }
 
-  // Update the direction every 50ms 
+  // Compute the magnetic direction every 50ms 
   if (millis() - timerMAG > 50) {
     // do not change this value otherwise the filter will not converge
     timerMAG = millis();
@@ -652,17 +664,12 @@ void loop()
     // Serial.print(myIMUpitch *= RAD_TO_DEG, 2);
     // Serial.print(", ");
     // Serial.println(myIMUroll *= RAD_TO_DEG, 2);
-
-    float headingDegrees = 0.0;
     myIMUyaw *= RAD_TO_DEG;
     if (myIMUyaw < 0) {
       headingDegrees = -1.0 * myIMUyaw;
     } else {
       headingDegrees = -1.0 * myIMUyaw + 360.0;
     }
-
-    Serial.print("HDG:");
-    Serial.println(headingDegrees);
   }
 
   // approximately every 1 seconds or so, print out the current stats

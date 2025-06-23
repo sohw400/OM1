@@ -1,3 +1,4 @@
+import datetime
 import logging
 import math
 import multiprocessing as mp
@@ -11,7 +12,7 @@ import numpy as np
 import zenoh
 from numpy.typing import NDArray
 
-from runtime.logging import setup_logging
+from runtime.logging import LoggingConfig, get_logging_config, setup_logging
 from zenoh_idl import sensor_msgs
 from zenoh_idl.sensor_msgs import LaserScan
 
@@ -36,14 +37,15 @@ class RPLidarConfig:
 
     max_buf_meas: int = 0
     min_len: int = 5
-    max_distance_mm: int = 1500
+    max_distance_mm: int = 5000
 
 
-def RPLidar_processor(
+def rplidar_processor(
     data_queue: mp.Queue,
     control_queue: mp.Queue,
     serial_port: str,
-    config: RPLidarConfig,
+    rplidar_config: RPLidarConfig,
+    logging_config: Optional[LoggingConfig] = None,
 ):
     """
     Dedicated RPLidar processor function for multiprocessing.
@@ -59,8 +61,10 @@ def RPLidar_processor(
         The name of the serial port in use by the RPLidar sensor.
     config : Dict
         Configuration dictionary containing parameters for the RPLidar.
+    logging_config : Optional[LoggingConfig]
+        Optional logging configuration. If provided, it will override the default logging settings.
     """
-    setup_logging("rplidar_processor")
+    setup_logging("rplidar_processor", logging_config=logging_config)
 
     running = True
 
@@ -85,9 +89,9 @@ def RPLidar_processor(
 
             scan = lidar.iter_scans_local(
                 scan_type="express",
-                max_buf_meas=config.max_buf_meas,
-                min_len=config.min_len,
-                max_distance_mm=config.max_distance_mm,
+                max_buf_meas=rplidar_config.max_buf_meas,
+                min_len=rplidar_config.min_len,
+                max_distance_mm=rplidar_config.max_distance_mm,
             )
 
             for scan_data in scan:
@@ -163,6 +167,7 @@ class RPLidarProvider:
         rplidar_config: RPLidarConfig = RPLidarConfig(
             max_buf_meas=0, min_len=5, max_distance_mm=1500
         ),
+        log_file: bool = False,
     ):
         """
         Robot and sensor configuration
@@ -180,6 +185,7 @@ class RPLidarProvider:
         self.use_zenoh = use_zenoh
         self.simple_paths = simple_paths
         self.rplidar_config = rplidar_config
+        self.log_file = log_file
 
         self.running: bool = False
         self.lidar = None
@@ -192,6 +198,17 @@ class RPLidarProvider:
 
         self.angles = None
         self.angles_final = None
+
+        self.start_time = None
+        self.log_filename = None
+        self.log_file_opened = None
+
+        # Create timestamped log filename
+        if self.log_file:
+            self.start_time = datetime.datetime.now(datetime.UTC)
+            self.log_filename = f"dump/lidar_{self.start_time.isoformat(timespec='seconds').replace(':', '-')}Z.jsonl"
+            self.log_file_opened = open(self.log_filename, "a")
+            logging.info(f"LIDAR Logging to {self.log_filename}")
 
         # Initialize paths for path planning
         # Define 9 straight line paths separated by 15 degrees
@@ -253,12 +270,13 @@ class RPLidarProvider:
             or not self._rplidar_processor_thread.is_alive()
         ):
             self._rplidar_processor_thread = mp.Process(
-                target=RPLidar_processor,
+                target=rplidar_processor,
                 args=(
                     self.data_queue,
                     self.control_queue,
                     self.serial_port,
                     self.rplidar_config,
+                    get_logging_config(),
                 ),
                 daemon=True,
             )
@@ -321,18 +339,11 @@ class RPLidarProvider:
             with angles and distances.
         """
         complexes = []
+        raw = []
 
         for angle, distance in data:
 
             d_m = distance
-
-            # don't worry about distant objects
-            if d_m > self.relevant_distance_max:
-                continue
-
-            # don't worry about distant objects
-            if d_m < self.relevant_distance_min:
-                continue
 
             # first, correctly orient the sensor zero to the robot zero
             angle = angle + self.sensor_mounting_angle
@@ -341,24 +352,24 @@ class RPLidarProvider:
             elif angle < 0.0:
                 angle = 360.0 + angle
 
+            raw.append([angle, d_m])
+
+            # don't worry about distant objects
+            if d_m > self.relevant_distance_max:
+                continue
+
+            # don't worry about too close objects
+            if d_m < self.relevant_distance_min:
+                continue
+
             # convert the angle from [0 to 360] to [-180 to +180] range
             angle = angle - 180.0
 
-            reflection = False
             for b in self.angles_blanked:
                 if angle >= b[0] and angle <= b[1]:
                     # this is a permanent robot reflection
                     # disregard
-                    reflection = True
-                    break
-
-            if d_m < self.relevant_distance_min:
-                # this is a permanent robot reflection
-                # disregard
-                reflection = True
-
-            if reflection:
-                continue
+                    continue
 
             # Convert angle to radians for trigonometric calculations
             # Note: angle is adjusted to [0, 360] range
@@ -376,6 +387,12 @@ class RPLidarProvider:
             complexes.append([x, y, angle, d_m])
 
         array = np.array(complexes)
+        raw_array = np.array(raw)
+
+        if self.log_file and self.log_file_opened:
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+            self.log_file_opened.write(f"{timestamp} - {raw_array.tolist()}\n")
+            self.log_file_opened.flush()
 
         # logging.info(f"final: {array.ndim}")
 

@@ -23,7 +23,7 @@ class RFmapper(Background):
     Assemble location and BLE data.
     """
 
-    def __init__(self, config: BackgroundConfig):
+    def __init__(self, config: BackgroundConfig = BackgroundConfig()):
         """
         Initialize the RFmapper with configuration.
 
@@ -33,9 +33,14 @@ class RFmapper(Background):
             Configuration object for the background.
         """
         super().__init__(config)
+
+        logging.info(f"Mapper config: {config}")
+
         self.name = getattr(config, "name", "RFmapper")
         self.api_key = getattr(config, "api_key", None)
         self.URID = getattr(config, "URID", None)
+        self.unitree_ethernet = getattr(config, "unitree_ethernet", None)
+
         self.loop = asyncio.new_event_loop()
         self.thread = threading.Thread(target=self._scan_task)
         self.running = False
@@ -49,6 +54,7 @@ class RFmapper(Background):
         self.gps_lat = 0.0
         self.gps_lon = 0.0
         self.gps_alt = 0.0
+        self.gps_qua = 0
         self.yaw_mag_0_360 = 0.0
         self.ble_scan: List[RFDataRaw] = []
 
@@ -111,7 +117,7 @@ class RFmapper(Background):
             if advdata.manufacturer_data:
                 for key, value in advdata.manufacturer_data.items():
                     mfgkey = hex(key).upper()
-                    mfgval = hex(value).upper()
+                    mfgval = value.hex().upper()
                     break
 
             if advdata.service_uuids:
@@ -119,14 +125,18 @@ class RFmapper(Background):
 
             # we want to update everything EXCEPT we do not want to overwrite a resolved name
             # and we do not want to replace a long mfgval with a short one
+            # we also want to update the TX power if we receive those data
             rssi = advdata.rssi
+            tx_power = advdata.tx_power
 
             if addr in self.seen_devices:
                 self.seen_devices[addr].rssi = rssi
                 self.seen_devices[addr].timestamp = time.time()
-                self.seen_devices[addr].tx_power = (
-                    advdata.tx_power if advdata.tx_power else None
-                )
+                if tx_power and self.seen_devices[addr].tx_power is None:
+                    self.seen_devices[addr].tx_power = tx_power
+                    logging.info(
+                        f"Updated BLE tx_power: {self.seen_devices[addr].tx_power}"
+                    )
                 if local_name and self.seen_devices[addr].name is None:
                     self.seen_devices[addr].name = local_name
                     logging.info(f"Updated BLE name: {self.seen_devices[addr].name}")
@@ -142,7 +152,7 @@ class RFmapper(Background):
                     address=addr,
                     name=local_name if local_name else None,
                     rssi=rssi,
-                    tx_power=advdata.tx_power if advdata.tx_power else None,
+                    tx_power=tx_power if tx_power else None,
                     service_uuid=service_uuid,
                     mfgkey=mfgkey,
                     mfgval=mfgval,
@@ -204,25 +214,17 @@ class RFmapper(Background):
 
                             if g["gps_time_utc"] != "":
                                 self.gps_time_utc = g["gps_time_utc"]
-
-                                lat = g["gps_lat"]
-                                if lat and lat[-1] == "N":
-                                    self.gps_lat = float(lat[:-1])
-                                else:
-                                    self.gps_lat = -1.0 * float(lat[:-1])
-
-                                lon = g["gps_lon"]
-                                if lon and lon[-1] == "E":
-                                    self.gps_lon = float(lon[:-1])
-                                else:
-                                    self.gps_lon = -1.0 * float(lon[:-1])
-
+                                self.gps_lat = g["gps_lat"]
+                                self.gps_lon = g["gps_lon"]
                                 self.gps_alt = g["gps_alt"]
                                 self.yaw_mag_0_360 = g["yaw_mag_0_360"]
+                                self.gps_qua = g["gps_qua"]
 
                             if g["ble_scan"] is not None:
                                 self.ble_scan = g["ble_scan"]
                                 logging.debug(f"RF scan results {self.ble_scan}")
+                            else:
+                                logging.warn("No nRF52 scan results")
 
                     except Exception as e:
                         logging.error(f"Error parsing GPS: {e}")
@@ -258,6 +260,7 @@ class RFmapper(Background):
                                 gps_lat=self.gps_lat,
                                 gps_lon=self.gps_lon,
                                 gps_alt=self.gps_alt,
+                                gps_qua=self.gps_qua,
                                 rtk_time_utc=self.rtk_time_utc,
                                 rtk_lat=self.rtk_lat,
                                 rtk_lon=self.rtk_lon,

@@ -4,7 +4,7 @@ from typing import Type
 
 import json5
 
-from actions.base import ActionConnector, ActionImplementation, Interface
+from actions.base import ActionConnector, Interface
 from runtime.config import load_input, load_llm, load_simulator
 
 
@@ -56,16 +56,6 @@ def assert_action_classes_exist(action_config):
     assert (
         interface is not None
     ), f"No interface found for action {action_config['name']}"
-
-    # Check implementation exists
-    if action_config["implementation"] != "passthrough":
-        impl_module = importlib.import_module(
-            f"actions.{action_config['name']}.implementation.{action_config['implementation']}"
-        )
-        implementation = find_subclass_in_module(impl_module, ActionImplementation)
-        assert (
-            implementation is not None
-        ), f"No implementation found for action {action_config['name']}"
 
     # Check connector exists
     connector_module = importlib.import_module(

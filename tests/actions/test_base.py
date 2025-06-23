@@ -4,13 +4,7 @@ from typing import Optional
 import pytest
 
 # Import the classes from your module (assuming it's named action_base.py)
-from actions.base import (
-    ActionConfig,
-    ActionConnector,
-    ActionImplementation,
-    AgentAction,
-    Interface,
-)
+from actions.base import ActionConfig, ActionConnector, AgentAction, Interface
 
 
 @dataclass
@@ -30,12 +24,6 @@ class SampleInterface(Interface[SampleInput, SampleOutput]):
     output: SampleOutput
 
 
-# Test implementation of ActionImplementation
-class SampleActionImpl(ActionImplementation[SampleInput, SampleOutput]):
-    async def execute(self, input_protocol: SampleInput) -> SampleOutput:
-        return SampleOutput(result=f"Processed: {input_protocol.value}")
-
-
 # Test implementation of ActionConnector
 class SampleConnector(ActionConnector[SampleOutput]):
     def __init__(self, config: ActionConfig):
@@ -52,37 +40,19 @@ def action_config():
 
 
 @pytest.fixture
-def test_implementation(action_config):
-    return SampleActionImpl(action_config)
-
-
-@pytest.fixture
 def test_connector(action_config):
     return SampleConnector(action_config)
 
 
 @pytest.fixture
-def agent_action(test_implementation, test_connector):
+def agent_action(test_connector):
     return AgentAction(
         name="test_action",
         llm_label="test_llm_label",
         interface=SampleInterface,
-        implementation=test_implementation,
         connector=test_connector,
         exclude_from_prompt=True,
     )
-
-
-@pytest.mark.asyncio
-async def test_action_implementation_execute():
-    config = ActionConfig(param1="test_value")
-    implementation = SampleActionImpl(config)
-    test_input = SampleInput(value="test_data")
-
-    result = await implementation.execute(test_input)
-
-    assert isinstance(result, SampleOutput)
-    assert result.result == "Processed: test_data"
 
 
 @pytest.mark.asyncio
@@ -100,14 +70,10 @@ async def test_connector_connect():
 async def test_full_action_flow(agent_action):
     test_input = SampleInput(value="test_data")
 
-    # Execute the implementation
-    output = await agent_action.implementation.execute(test_input)
-    assert isinstance(output, SampleOutput)
-
     # Connect the output
-    await agent_action.connector.connect(output)
+    await agent_action.connector.connect(test_input)
     assert isinstance(agent_action.connector, SampleConnector)
-    assert agent_action.connector.last_output == output
+    assert agent_action.connector.last_output == test_input
 
 
 def test_action_config():
@@ -124,5 +90,4 @@ def test_action_config():
 def test_agent_action_structure(agent_action):
     assert agent_action.name == "test_action"
     assert agent_action.interface == SampleInterface
-    assert isinstance(agent_action.implementation, SampleActionImpl)
     assert isinstance(agent_action.connector, SampleConnector)

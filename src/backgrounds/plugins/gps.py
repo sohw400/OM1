@@ -15,4 +15,4 @@ class Gps(Background):
         port = getattr(config, "serial_port", None)
 
         self.gps_provider = GpsProvider(serial_port=port)
-        logging.info("Initiated GPS Provider in background")
+        logging.info(f"Initiated GPS Provider with serial port: {port} in background")

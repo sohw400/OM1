@@ -36,7 +36,6 @@
     {
       name: "speak",
       llm_label: "speak",
-      implementation: "passthrough",
       connector: "elevenlabs_tts",
       config: {
         voice_id: "i4CzbCVWoqvD0P1QJCUL",
@@ -45,13 +44,11 @@
     {
       name: "emotion",
       llm_label: "emotion",
-      implementation: "passthrough",
       connector: "unitree_sdk",
     },
     {
       name: "gps",
       llm_label: "gps",
-      implementation: "passthrough",
       connector: "fabric",
     },
   ],

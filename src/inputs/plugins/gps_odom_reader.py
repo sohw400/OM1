@@ -72,7 +72,8 @@ class GPSOdomReader(FuserInput[str]):
         self.buf: list[Message] = []
         self.descriptor_for_LLM = "Latitude, Longitude, and Yaw"
 
-        self.odom = OdomProvider()
+        unitree_ethernet: str | None = getattr(config, "unitree_ethernet", None)
+        self.odom = OdomProvider(channel=unitree_ethernet)
         logging.info(f"Mapper Odom Provider: {self.odom}")
 
     # ── helpers ──────────────────────────────────────────────────────────

@@ -13,13 +13,18 @@ from PIL import Image
 
 from runtime.config import build_runtime_config_from_test_case
 from runtime.cortex import CortexRuntime
+from tests.integration.mock_inputs.data_providers.mock_image_provider import (
+    get_image_provider,
+    load_test_images,
+)
+from tests.integration.mock_inputs.data_providers.mock_lidar_scan_provider import (
+    clear_lidar_provider,
+    get_lidar_provider,
+    load_test_scans_from_files,
+)
 from tests.integration.mock_inputs.input_registry import (
     register_mock_inputs,
     unregister_mock_inputs,
-)
-from tests.integration.mock_inputs.mock_image_provider import (
-    get_image_provider,
-    load_test_images,
 )
 
 # Register mock inputs with the input loading system
@@ -34,7 +39,7 @@ TEST_CASES_DIR = DATA_DIR / "test_cases"
 _llm_client = None
 
 # Movement types that should be considered movement commands
-MOVEMENT_ACTION_TYPES = {
+VLM_MOVE_TYPES = {
     "stand still",
     "sit",
     "dance",
@@ -45,6 +50,8 @@ MOVEMENT_ACTION_TYPES = {
     "jump",
     "wag tail",
 }
+
+LIDAR_MOVE_TYPES = {"turn left", "turn right", "move forwards", "stand still"}
 
 EMOTION_TYPES = {"cry", "smile", "frown", "think", "joy"}
 
@@ -182,25 +189,31 @@ async def run_test_case(config: Dict[str, Any]) -> Dict[str, Any]:
     Dict[str, Any]
         Test results
     """
-    # Load test images
-    images = load_test_images_from_config(config)
-    if not images:
-        raise ValueError("No valid test images found in configuration")
+    # Check what types of inputs are configured
+    inputs = config.get("input", {})
+    has_image_inputs = "images" in inputs
+    has_lidar_inputs = "lidar" in inputs
 
-    logging.info(f"Loaded {len(images)} test images for test case")
+    # Load image data only if the test case uses image-based inputs
+    if has_image_inputs:
+        # Load test images
+        images = load_test_images_from_config(config)
+        if not images:
+            raise ValueError(
+                "No valid test images found in configuration for image-based inputs"
+            )
 
-    # Prepare image metadata
-    image_metadata = {
-        "scene_type": config["input"].get("scene_type", "unknown"),
-        "objects": config["input"].get("objects", []),
-        "expected_keywords": config["expected"].get("keywords", []),
-    }
+        logging.info(f"Loaded {len(images)} test images for test case")
 
-    # Load test images into the central mock provider
-    load_test_images(images, image_metadata)
-    logging.info(
-        f"Images loaded into mock provider, provider now has {len(get_image_provider().test_images)} images"
-    )
+        # Load test images into the central mock provider
+        load_test_images(images)
+        logging.info(
+            f"Images loaded into mock provider, provider now has {len(get_image_provider().test_images)} images"
+        )
+
+    # Load lidar data if the test case uses RPLidar inputs
+    if has_lidar_inputs:
+        await load_test_lidar_data(config)
 
     # No need to modify config - the input_registry will handle mapping
     # the real input types to their mock equivalents
@@ -250,6 +263,11 @@ async def run_test_case(config: Dict[str, Any]) -> Dict[str, Any]:
     # This step is needed because we're not starting the full runtime
     await initialize_mock_inputs(cortex.config.agent_inputs)
 
+    # Set cortex runtime reference for MockRPLidar cleanup
+    for input_obj in cortex.config.agent_inputs:
+        if hasattr(input_obj, "set_cortex_runtime"):
+            input_obj.set_cortex_runtime(cortex)
+
     # Run a single tick of the cortex loop
     await cortex._tick()
 
@@ -258,6 +276,32 @@ async def run_test_case(config: Dict[str, Any]) -> Dict[str, Any]:
 
     # The output includes detection results and commands
     return output_results
+
+
+async def load_test_lidar_data(config: Dict[str, Any]):
+    """
+    Load test lidar data specified in the configuration.
+
+    Parameters
+    ----------
+    config : Dict[str, Any]
+        Test case configuration containing lidar data paths
+    """
+    lidar_files = config.get("input", {}).get("lidar", [])
+    if not lidar_files:
+        logging.info("No lidar data files specified in test configuration")
+        return
+
+    base_dir = TEST_CASES_DIR
+
+    # Clear any existing lidar data
+    clear_lidar_provider()
+
+    # Load the lidar data using the mock lidar provider
+    load_test_scans_from_files(lidar_files, base_dir)
+
+    lidar_provider = get_lidar_provider()
+    logging.info(f"Loaded {lidar_provider.scan_count} lidar scans for test case")
 
 
 async def initialize_mock_inputs(inputs):
@@ -309,34 +353,251 @@ async def cleanup_mock_inputs(inputs):
     inputs : List
         List of input objects from the runtime config
     """
-    for input_obj in inputs:
+    logging.info(f"cleanup_mock_inputs: Starting cleanup of {len(inputs)} inputs")
+
+    for i, input_obj in enumerate(inputs):
+        input_name = type(input_obj).__name__
+
         try:
-            # Try async stop method first
-            if hasattr(input_obj, "stop") and asyncio.iscoroutinefunction(
+            # Try MockRPLidar's comprehensive async cleanup first
+            if hasattr(input_obj, "async_cleanup"):
+                await input_obj.async_cleanup()
+            # Try async stop method
+            elif hasattr(input_obj, "stop") and asyncio.iscoroutinefunction(
                 input_obj.stop
             ):
                 await input_obj.stop()
-                logging.info(
-                    f"Cleaned up mock input (async): {type(input_obj).__name__}"
-                )
             # Try synchronous cleanup method
             elif hasattr(input_obj, "cleanup"):
                 input_obj.cleanup()
-                logging.info(
-                    f"Cleaned up mock input (sync): {type(input_obj).__name__}"
-                )
             # Try synchronous stop method
             elif hasattr(input_obj, "stop"):
                 input_obj.stop()
-                logging.info(
-                    f"Cleaned up mock input (stop): {type(input_obj).__name__}"
+            else:
+                logging.warning(
+                    f"cleanup_mock_inputs: No cleanup method found for {input_name}"
                 )
+
         except Exception as e:
-            logging.error(f"Error cleaning up {type(input_obj).__name__}: {e}")
+            logging.error(f"cleanup_mock_inputs: Error cleaning up {input_name}: {e}")
+
+    logging.info("cleanup_mock_inputs: Finished cleaning up all inputs")
+
+
+def _build_llm_evaluation_prompts(
+    has_movement: bool,
+    has_keywords: bool,
+    has_emotion: bool,
+    formatted_actual: Dict[str, Any],
+    formatted_expected: Dict[str, Any],
+) -> Tuple[str, str]:
+    """
+    Build system and user prompts for LLM evaluation.
+
+    Parameters
+    ----------
+    has_movement : bool
+        Whether movement evaluation is required
+    has_keywords : bool
+        Whether keyword evaluation is required
+    has_emotion : bool
+        Whether emotion evaluation is required
+    formatted_actual : Dict[str, Any]
+        Formatted actual results
+    formatted_expected : Dict[str, Any]
+        Formatted expected results
+
+    Returns
+    -------
+    Tuple[str, str]
+        (system_prompt, user_prompt)
+    """
+    # Build evaluation criteria description based on what's specified
+    evaluation_criteria = []
+    criterion_num = 1
+
+    if has_movement:
+        evaluation_criteria.append(
+            f"{criterion_num}. MOVEMENT ACCURACY: Does the robot's movement command match or fulfill the intended purpose of the expected movement?"
+        )
+        criterion_num += 1
+    if has_keywords:
+        evaluation_criteria.append(
+            f"{criterion_num}. KEYWORD DETECTION: Were the expected keywords correctly identified in the system's vision results?"
+        )
+        criterion_num += 1
+    if has_emotion:
+        evaluation_criteria.append(
+            f"{criterion_num}. EMOTION ACCURACY: Does the robot's emotional expression match the expected emotion?"
+        )
+        criterion_num += 1
+
+    # Always include overall behavior if we have any criteria
+    evaluation_criteria.append(
+        f"{criterion_num}. OVERALL BEHAVIOR: Does the combined response (movement, speech, emotion) appropriately respond to the detected objects?"
+    )
+
+    criteria_text = "\n    ".join(evaluation_criteria)
+
+    # Adjust rating scale description based on what we're evaluating
+    criteria_count = sum([has_movement, has_keywords, has_emotion])
+
+    if criteria_count == 3:  # All three criteria
+        rating_description = """Rate on a scale of 0.0 to 1.0:
+    • 0.0-0.2: Completely mismatched; all criteria are wrong
+    • 0.2-0.4: Mostly incorrect; two criteria are wrong
+    • 0.4-0.6: Partially correct; at least one criterion matches
+    • 0.6-0.8: Mostly correct; two criteria match
+    • 0.8-1.0: Perfect match; all criteria match"""
+    elif criteria_count == 2:  # Two criteria
+        if has_movement and has_keywords:
+            rating_description = """Rate on a scale of 0.0 to 1.0:
+    • 0.0-0.2: Completely mismatched; both criteria are wrong
+    • 0.2-0.4: Mostly incorrect; one criterion is wrong
+    • 0.4-0.6: Partially correct; one criterion matches
+    • 0.6-0.8: Mostly correct; both criteria match
+    • 0.8-1.0: Perfect match; both criteria match exactly"""
+        elif has_movement and has_emotion:
+            rating_description = """Rate on a scale of 0.0 to 1.0:
+    • 0.0-0.2: Completely mismatched; both criteria are wrong
+    • 0.2-0.4: Mostly incorrect; one criterion is wrong
+    • 0.4-0.6: Partially correct; one criterion matches
+    • 0.6-0.8: Mostly correct; both criteria match
+    • 0.8-1.0: Perfect match; both criteria match exactly"""
+        else:  # keywords and emotion
+            rating_description = """Rate on a scale of 0.0 to 1.0:
+    • 0.0-0.2: Completely mismatched; both criteria are wrong
+    • 0.2-0.4: Mostly incorrect; one criterion is wrong
+    • 0.4-0.6: Partially correct; one criterion matches
+    • 0.6-0.8: Mostly correct; both criteria match
+    • 0.8-1.0: Perfect match; both criteria match exactly"""
+    else:  # Single criterion
+        if has_movement:
+            rating_description = """Rate on a scale of 0.0 to 1.0:
+    • 0.0-0.2: Completely mismatched; wrong movement
+    • 0.2-0.4: Mostly incorrect; movement is somewhat related
+    • 0.4-0.6: Partially correct; movement is close
+    • 0.6-0.8: Mostly correct; movement matches
+    • 0.8-1.0: Perfect match; movement matches exactly"""
+        elif has_keywords:
+            rating_description = """Rate on a scale of 0.0 to 1.0:
+    • 0.0-0.2: Completely mismatched; no keywords detected
+    • 0.2-0.4: Mostly incorrect; few keywords detected
+    • 0.4-0.6: Partially correct; some keywords detected
+    • 0.6-0.8: Mostly correct; most keywords detected
+    • 0.8-1.0: Perfect match; all keywords detected"""
+        else:  # has_emotion only
+            rating_description = """Rate on a scale of 0.0 to 1.0:
+    • 0.0-0.2: Completely mismatched; wrong emotion
+    • 0.2-0.4: Mostly incorrect; emotion is somewhat related
+    • 0.4-0.6: Partially correct; emotion is close
+    • 0.6-0.8: Mostly correct; emotion matches
+    • 0.8-1.0: Perfect match; emotion matches exactly"""
+
+    system_prompt = f"""You are an AI evaluator specialized in analyzing robotic system test results. Your task is to assess how well the actual output matches the expected output based on specific criteria.
+
+    Evaluation criteria:
+    {criteria_text}
+
+    {rating_description}
+
+    Your response must follow this format exactly:
+    Rating: [from 0 to 1]
+    Reasoning: [clear explanation of your rating, referencing specific evidence]"""
+
+    # Build the comparison section based on what we're evaluating
+    comparison_sections = []
+    if has_movement:
+        movement_list = formatted_expected["movement"]
+        if len(movement_list) == 1:
+            comparison_sections.append(f'- Movement command: "{movement_list[0]}"')
+        else:
+            movement_options = ", ".join([f'"{m}"' for m in movement_list])
+            comparison_sections.append(
+                f"- Movement command (any of): {movement_options}"
+            )
+    if has_keywords:
+        comparison_sections.append(
+            f'- Should detect keywords: {formatted_expected["keywords"]}'
+        )
+    if has_emotion:
+        emotion_list = formatted_expected["emotion"]
+        if len(emotion_list) == 1:
+            comparison_sections.append(f'- Expected emotion: "{emotion_list[0]}"')
+        else:
+            emotion_options = ", ".join([f'"{e}"' for e in emotion_list])
+            comparison_sections.append(
+                f"- Expected emotion (any of): {emotion_options}"
+            )
+
+    expected_text = "\n    ".join(comparison_sections)
+
+    actual_sections = []
+    if has_movement:
+        actual_sections.append(f'- Movement command: "{formatted_actual["movement"]}"')
+    if has_keywords:
+        actual_sections.append(
+            f'- Keywords successfully detected: {formatted_actual["keywords_found"]}'
+        )
+    if has_emotion:
+        actual_sections.append(f'- Actual emotion: "{formatted_actual["emotion"]}"')
+
+    actual_text = "\n    ".join(actual_sections)
+
+    # Build comparison question based on criteria
+    comparison_questions = []
+    if has_movement:
+        if len(formatted_expected["movement"]) == 1:
+            comparison_questions.append(
+                "Does the actual movement match the expected movement?"
+            )
+        else:
+            comparison_questions.append(
+                "Does the actual movement match any of the expected movements?"
+            )
+    if has_keywords:
+        comparison_questions.append("Were the expected keywords detected?")
+    if has_emotion:
+        if len(formatted_expected["emotion"]) == 1:
+            comparison_questions.append(
+                "Does the actual emotion match the expected emotion?"
+            )
+        else:
+            comparison_questions.append(
+                "Does the actual emotion match any of the expected emotions?"
+            )
+
+    comparison_text = (
+        " ".join(comparison_questions)
+        + " Does the response make sense for what was detected in the scene?"
+    )
+
+    user_prompt = f"""
+    TEST CASE: "Robotic system behavior evaluation"
+
+    CONTEXT: A robot with vision capabilities is analyzing a scene and should respond appropriately to what it detects.
+
+    EXPECTED OUTPUT:
+    {expected_text}
+
+    ACTUAL OUTPUT:
+    {actual_text}
+
+    Compare these results carefully. {comparison_text if comparison_questions else ""}
+
+    Provide your evaluation in exactly this format:
+    Rating: [from 0 to 1]
+    Reasoning: [Your detailed explanation]
+    """
+
+    return system_prompt, user_prompt
 
 
 async def evaluate_with_llm(
-    actual_output: Dict[str, Any], expected_output: Dict[str, Any], api_key: str
+    actual_output: Dict[str, Any],
+    expected_output: Dict[str, Any],
+    api_key: str,
+    config: Dict[str, Any] = None,
 ) -> Tuple[float, str]:
     """
     Evaluate test results using LLM-based comparison.
@@ -349,6 +610,8 @@ async def evaluate_with_llm(
         Expected output defined in test configuration
     api_key : str
         API key for the LLM evaluation
+    config : Dict[str, Any], optional
+        Test case configuration for context-aware evaluation
 
     Returns
     -------
@@ -372,15 +635,41 @@ async def evaluate_with_llm(
             base_url="https://api.openmind.org/api/core/openai", api_key=api_key
         )
 
+    # Check which evaluation criteria are specified
+    has_movement = (
+        "movement" in expected_output and expected_output["movement"] is not None
+    )
+    has_keywords = (
+        "keywords" in expected_output
+        and expected_output["keywords"]
+        and len(expected_output["keywords"]) > 0
+    )
+    has_emotion = (
+        "emotion" in expected_output and expected_output["emotion"] is not None
+    )
+
+    # If neither movement nor keywords nor emotion are specified, return perfect score
+    if not has_movement and not has_keywords and not has_emotion:
+        return 1.0, "No specific evaluation criteria specified - test passes by default"
+
+    # Get appropriate movement types for this test case
+    movement_types = get_movement_types_for_config(config) if config else VLM_MOVE_TYPES
+
+    # Log which movement types are being used for debugging
+    input_type = "unknown"
+    if config:
+        input_section = config.get("input", {})
+        if "lidar" in input_section:
+            input_type = "LIDAR"
+        elif "images" in input_section:
+            input_type = "VLM/Image"
+
+    logging.info(f"Using {input_type} movement types: {movement_types}")
+
     # Format actual and expected results for evaluation
     formatted_actual = {
-        "movement": next(
-            (
-                cmd.type
-                for cmd in actual_output.get("actions", [])
-                if hasattr(cmd, "type") and cmd.type in MOVEMENT_ACTION_TYPES
-            ),
-            "unknown",
+        "movement": extract_movement_from_actions(
+            actual_output.get("actions", []), movement_types
         ),
         "keywords_found": [
             kw
@@ -390,63 +679,43 @@ async def evaluate_with_llm(
                 for result in actual_output.get("raw_response", [])
             )
         ],
+        "emotion": next(
+            (
+                cmd.type if cmd.type in EMOTION_TYPES else cmd.value
+                for cmd in actual_output.get("actions", [])
+                if hasattr(cmd, "type")
+                and (
+                    cmd.type in EMOTION_TYPES
+                    or (
+                        cmd.type == "emotion"
+                        and hasattr(cmd, "value")
+                        and cmd.value in EMOTION_TYPES
+                    )
+                )
+            ),
+            "unknown",
+        ),
     }
+
+    # Normalize expected values to always be lists for consistent handling
+    def normalize_expected_value(value):
+        if value is None:
+            return []
+        elif isinstance(value, list):
+            return value
+        else:
+            return [value]
 
     formatted_expected = {
-        "movement": expected_output.get("movement", "unknown"),
+        "movement": normalize_expected_value(expected_output.get("movement")),
         "keywords": expected_output.get("keywords", []),
+        "emotion": normalize_expected_value(expected_output.get("emotion")),
     }
 
-    system_prompt = """You are an AI evaluator specialized in analyzing robotic \
-system test results. Your task is to assess how well the actual output matches \
-the expected output based on specific criteria.
-
-    Evaluation criteria:
-    1. MOVEMENT ACCURACY: Does the robot's movement command match or fulfill \
-the intended purpose of the expected movement?
-    2. KEYWORD DETECTION: Were the expected keywords correctly identified in \
-the system's vision results?
-    3. OVERALL BEHAVIOR: Does the combined response (movement, speech, emotion) \
-appropriately respond to the detected objects?
-
-    Rate on a scale of 1-5:
-    • 1: Completely mismatched; wrong movement and few/no keywords detected
-    • 2: Mostly incorrect; movement intent doesn't align, or most keywords missed
-    • 3: Partially correct; movement is acceptable but not ideal, or only some \
-keywords detected
-    • 4: Mostly correct; movement closely matches expected intent, most keywords \
-detected
-    • 5: Perfect match; movement is exactly as expected, all keywords properly \
-detected
-
-    Your response must follow this format exactly:
-    Rating: [from 0 to 1]
-    Reasoning: [clear explanation of your rating, referencing specific evidence]"""
-
-    user_prompt = f"""
-    TEST CASE: "Indoor scene object detection test"
-
-    CONTEXT: A robot with vision capabilities is analyzing an indoor scene and \
-should respond appropriately to what it detects.
-
-    EXPECTED OUTPUT:
-    - Movement command: "{formatted_expected["movement"]}"
-    - Should detect keywords: {formatted_expected["keywords"]}
-
-    ACTUAL OUTPUT:
-    - Movement command: "{formatted_actual["movement"]}"
-    - Keywords successfully detected: {formatted_actual["keywords_found"]}
-
-    {'''SPECIAL INSTRUCTION: The expected movement is "any", which means any movement action (sit, dance, walk, etc.) should be considered a perfect match as long as it's not "unknown".''' if formatted_expected["movement"].lower() == "any" else ""}
-
-    Compare these results carefully. Does the actual movement match the expected \
-movement? Were the expected keywords detected? Does the response make sense for \
-what was detected in the scene?
-
-    Provide your evaluation in exactly this format:
-    Rating: [from 0 to 1]
-    Reasoning: [Your detailed explanation]
-    """
+    # Build prompts using helper method
+    system_prompt, user_prompt = _build_llm_evaluation_prompts(
+        has_movement, has_keywords, has_emotion, formatted_actual, formatted_expected
+    )
 
     try:
         # Call the OpenAI API
@@ -481,7 +750,10 @@ what was detected in the scene?
 
 
 async def evaluate_test_results(
-    results: Dict[str, Any], expected: Dict[str, Any], api_key: str
+    results: Dict[str, Any],
+    expected: Dict[str, Any],
+    api_key: str,
+    config: Dict[str, Any] = None,
 ) -> Tuple[bool, float, str]:
     """
     Evaluate test results against expected output using both heuristic and LLM-based evaluation.
@@ -494,69 +766,197 @@ async def evaluate_test_results(
         Expected outputs defined in the test configuration
     api_key : str
         API key for the LLM evaluation
+    config : Dict[str, Any], optional
+        Test case configuration for context-aware evaluation
 
     Returns
     -------
     Tuple[bool, float, str]
         (pass/fail, score, detailed message)
     """
-    # Extract movement from commands if available
-    movement = None
-    logging.info(f"Actions: {results['actions']}")
-    if "actions" in results and results["actions"]:
-        for command in results["actions"]:
-            if command.type in MOVEMENT_ACTION_TYPES:
-                movement = command.type
-                break
-            elif command.type == "move":
-                movement = command.value
-                break
+    # Check which evaluation criteria are specified
+    has_movement = "movement" in expected and expected["movement"] is not None
+    has_keywords = (
+        "keywords" in expected
+        and expected["keywords"]
+        and len(expected["keywords"]) > 0
+    )
+    has_emotion = "emotion" in expected and expected["emotion"] is not None
 
-    # Assign a default if still not found
-    if not movement:
-        movement = "unknown"
+    # If neither movement nor keywords nor emotion are specified, return perfect score
+    if not has_movement and not has_keywords and not has_emotion:
+        return (
+            True,
+            1.0,
+            "No specific evaluation criteria specified - test passes by default",
+        )
 
-    # Perform heuristic evaluation
-    # Special case: if expected movement is "any", then any actual movement is a match
-    if expected["movement"].lower() == "any":
-        movement_match = movement != "unknown"
-    else:
-        movement_match = movement == expected["movement"]
+    # Get appropriate movement types for this test case
+    movement_types = get_movement_types_for_config(config) if config else VLM_MOVE_TYPES
 
-    expected_keywords = expected.get("keywords", [])
-    keyword_matches = []
+    # Log which movement types are being used for debugging
+    input_type = "unknown"
+    if config:
+        input_section = config.get("input", {})
+        if "lidar" in input_section:
+            input_type = "LIDAR"
+        elif "images" in input_section:
+            input_type = "VLM/Image"
 
-    if "raw_response" in results and isinstance(results["raw_response"], str):
-        for keyword in expected_keywords:
-            if keyword.lower() in results["raw_response"].lower():
-                keyword_matches.append(keyword)
-
-    keyword_match_ratio = (
-        len(set(keyword_matches)) / len(expected_keywords) if expected_keywords else 1.0
+    logging.info(
+        f"Heuristic evaluation using {input_type} movement types: {movement_types}"
     )
 
-    # Calculate heuristic score
-    heuristic_score = 0.0
-    heuristic_score += 0.5 if movement_match else 0.0
-    heuristic_score += 0.5 * keyword_match_ratio
+    # Normalize expected values to always be lists for consistent handling
+    def normalize_expected_value(value):
+        if value is None:
+            return []
+        elif isinstance(value, list):
+            return value
+        else:
+            return [value]
 
-    # Get LLM-based evaluation
-    llm_score, llm_reasoning = await evaluate_with_llm(results, expected, api_key)
+    # Extract movement from commands using context-aware movement types
+    movement = extract_movement_from_actions(results.get("actions", []), movement_types)
+
+    # Perform heuristic evaluation with adaptive scoring
+    heuristic_score = 0.0
+    evaluation_components = []
+
+    movement_match = False
+    keyword_match_ratio = 0.0
+    emotion_match = False
+
+    if has_movement:
+        # Check if the actual movement matches any of the expected movements
+        expected_movements = normalize_expected_value(expected["movement"])
+        # If expected_movements is empty, we expect no movement
+        if not expected_movements:
+            movement_match = movement == "unknown"
+        else:
+            movement_match = movement in expected_movements
+        evaluation_components.append("movement")
+
+    if has_keywords:
+        expected_keywords = expected.get("keywords", [])
+        keyword_matches = []
+
+        if "raw_response" in results and isinstance(results["raw_response"], str):
+            for keyword in expected_keywords:
+                if keyword.lower() in results["raw_response"].lower():
+                    keyword_matches.append(keyword)
+
+        keyword_match_ratio = (
+            len(set(keyword_matches)) / len(expected_keywords)
+            if expected_keywords
+            else 1.0
+        )
+        evaluation_components.append("keywords")
+
+    if has_emotion:
+        # Extract emotion from commands if available
+        actual_emotion = None
+        if "actions" in results and results["actions"]:
+            for command in results["actions"]:
+                if hasattr(command, "type"):
+                    if command.type in EMOTION_TYPES:
+                        actual_emotion = command.type
+                        break
+                    elif command.type == "emotion" and hasattr(command, "value"):
+                        if command.value in EMOTION_TYPES:
+                            actual_emotion = command.value
+                            break
+
+        # Assign a default if still not found
+        if not actual_emotion:
+            actual_emotion = "unknown"
+
+        expected_emotions = normalize_expected_value(expected["emotion"])
+        # If expected_emotions is empty, we expect no emotion
+        if not expected_emotions:
+            emotion_match = actual_emotion == "unknown"
+        else:
+            emotion_match = actual_emotion in expected_emotions
+        evaluation_components.append("emotion")
+
+    # Calculate weighted heuristic score based on available criteria
+    num_components = len(evaluation_components)
+    if num_components > 0:
+        component_weight = 1.0 / num_components
+        if has_movement:
+            heuristic_score += component_weight if movement_match else 0.0
+        if has_keywords:
+            heuristic_score += component_weight * keyword_match_ratio
+        if has_emotion:
+            heuristic_score += component_weight if emotion_match else 0.0
+
+    # Get LLM-based evaluation with config context
+    llm_score, llm_reasoning = await evaluate_with_llm(
+        results, expected, api_key, config
+    )
 
     # Combine scores (equal weighting)
     final_score = (heuristic_score + llm_score) / 2.0
 
     # Generate detailed message
-    details = [
-        "Heuristic Evaluation:",
-        f"- Movement: {movement}, Expected: {expected['movement']}, Match: {movement_match}",
-        f"- Keyword matches: {len(set(keyword_matches))}/{len(expected_keywords)} - {set(keyword_matches)}",
-        f"- Heuristic score: {heuristic_score:.2f}",
-        "\nLLM Evaluation:",
-        f"- LLM score: {llm_score:.2f}",
-        f"- LLM reasoning: {llm_reasoning}",
-        f"\nFinal score: {final_score:.2f}",
-    ]
+    details = ["Heuristic Evaluation:"]
+
+    if has_movement:
+        expected_movements = normalize_expected_value(expected["movement"])
+        if len(expected_movements) == 1:
+            details.append(
+                f"- Movement: {movement}, Expected: {expected_movements[0]}, Match: {movement_match}"
+            )
+        else:
+            movement_options = ", ".join(expected_movements)
+            details.append(
+                f"- Movement: {movement}, Expected (any of): [{movement_options}], Match: {movement_match}"
+            )
+
+    if has_keywords:
+        expected_keywords = expected.get("keywords", [])
+        keyword_matches = []
+        if "raw_response" in results and isinstance(results["raw_response"], str):
+            for keyword in expected_keywords:
+                if keyword.lower() in results["raw_response"].lower():
+                    keyword_matches.append(keyword)
+        details.append(
+            f"- Keyword matches: {len(set(keyword_matches))}/{len(expected_keywords)} - {set(keyword_matches)}"
+        )
+
+    if has_emotion:
+        # Re-extract emotion for display (could be optimized by storing earlier)
+        actual_emotion = "unknown"
+        if "actions" in results and results["actions"]:
+            for command in results["actions"]:
+                if hasattr(command, "type"):
+                    if command.type in EMOTION_TYPES:
+                        actual_emotion = command.type
+                        break
+                    elif command.type == "emotion" and hasattr(command, "value"):
+                        if command.value in EMOTION_TYPES:
+                            actual_emotion = command.value
+                            break
+        expected_emotions = normalize_expected_value(expected["emotion"])
+        if len(expected_emotions) == 1:
+            details.append(
+                f"- Emotion: {actual_emotion}, Expected: {expected_emotions[0]}, Match: {emotion_match}"
+            )
+        else:
+            emotion_options = ", ".join(expected_emotions)
+            details.append(
+                f"- Emotion: {actual_emotion}, Expected (any of): [{emotion_options}], Match: {emotion_match}"
+            )
+
+    details.extend(
+        [
+            f"- Heuristic score: {heuristic_score:.2f}",
+            "\nLLM Evaluation:",
+            f"- LLM score: {llm_score:.2f}",
+            f"- LLM reasoning: {llm_reasoning}",
+            f"\nFinal score: {final_score:.2f}",
+        ]
+    )
 
     if results.get("actions"):
         details.append("\nCommands:")
@@ -678,13 +1078,15 @@ async def test_from_config(test_case_path: Path):
     test_case_path : Path
         Path to the test case configuration file
     """
-    # Reset mock image provider to ensure test isolation
-    provider = get_image_provider()
-    provider.reset()
+    # Reset mock providers to ensure test isolation
+    image_provider = get_image_provider()
+    image_provider.reset()
     # Clear any existing images to ensure clean state
-    provider.test_images = []
-    provider.image_cache = {}
-    provider.image_metadata = {}
+    image_provider.test_images = []
+
+    # Reset lidar data as well
+    lidar_provider = get_lidar_provider()
+    lidar_provider.clear()
 
     # Add a small delay to reduce race conditions between parallel tests
     await asyncio.sleep(0.1)
@@ -699,16 +1101,22 @@ async def test_from_config(test_case_path: Path):
             f"Running test case: {config['name']} ({config.get('category', 'uncategorized')})"
         )
         logging.info(f"Description: {config['description']}")
-        logging.info(
-            f"Expected images for test: {len(config.get('input', {}).get('images', []))}"
-        )
+
+        # Log expected inputs based on type
+        input_section = config.get("input", {})
+        if "images" in input_section:
+            logging.info(f"Expected images for test: {len(input_section['images'])}")
+        if "lidar" in input_section:
+            logging.info(
+                f"Expected lidar files for test: {len(input_section['lidar'])}"
+            )
 
         # Run the test case
         results = await run_test_case(config)
 
         # Evaluate results
         passed, score, message = await evaluate_test_results(
-            results, config["expected"], config["api_key"]
+            results, config["expected"], config["api_key"], config
         )
 
         # Log detailed results
@@ -719,8 +1127,16 @@ async def test_from_config(test_case_path: Path):
             passed
         ), f"Test case failed: {config['name']} (Score: {score:.2f})\n{message}"
 
+        logging.info(f"test_from_config: Test {config['name']} completed successfully")
+
     except Exception as e:
         logging.error(f"Error running test case {test_case_path}: {e}")
+        # Even on error, try to clean up
+        try:
+            # Cleanup is now handled by MockRPLidar's async_cleanup method
+            pass
+        except Exception as cleanup_error:
+            logging.error(f"Error during cleanup after exception: {cleanup_error}")
         raise
 
 
@@ -754,3 +1170,58 @@ async def test_specific_case():
 def pytest_sessionfinish(session, exitstatus):
     """Clean up after all tests have run."""
     unregister_mock_inputs()
+
+
+def get_movement_types_for_config(config: Dict[str, Any]) -> set:
+    """
+    Determine which movement types to use based on the test configuration input types.
+
+    Parameters
+    ----------
+    config : Dict[str, Any]
+        Test case configuration
+
+    Returns
+    -------
+    set
+        The appropriate movement types set for this test case
+    """
+    input_section = config.get("input", {})
+
+    # Check if this is a LIDAR-based test
+    if "lidar" in input_section:
+        return LIDAR_MOVE_TYPES
+
+    # Check if this is an image/VLM-based test
+    if "images" in input_section:
+        return VLM_MOVE_TYPES
+
+    # Default to VLM types if unclear
+    return VLM_MOVE_TYPES
+
+
+def extract_movement_from_actions(actions: List, movement_types: set) -> str:
+    """
+    Extract movement command from actions using the appropriate movement types.
+
+    Parameters
+    ----------
+    actions : List
+        List of action commands
+    movement_types : set
+        Set of valid movement types for this test case
+
+    Returns
+    -------
+    str
+        The extracted movement command or "unknown"
+    """
+    for command in actions:
+        if hasattr(command, "type"):
+            if command.type in movement_types:
+                return command.type
+            elif command.type == "move" and hasattr(command, "value"):
+                if command.value in movement_types:
+                    return command.value
+
+    return "unknown"

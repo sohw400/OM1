@@ -36,13 +36,10 @@ class Rtk(FuserInput[str]):
     def __init__(self, config: SensorConfig = SensorConfig()):
         super().__init__(config)
 
-        port = getattr(config, "serial_port", None)
-        logging.info(f"RTK Provider: {port}")
-
-        self.rtk = RtkProvider(serial_port=port)
+        self.rtk = RtkProvider()
         self.io_provider = IOProvider()
         self.messages: list[Message] = []
-        self.descriptor_for_LLM = "Precision Location and Orientation"
+        self.descriptor_for_LLM = "Precision Location"
 
     async def _poll(self) -> Optional[dict]:
         """
@@ -88,9 +85,22 @@ class Rtk(FuserInput[str]):
             lat = r["rtk_lat"]
             lon = r["rtk_lon"]
             alt = r["rtk_alt"]
-            sat = r["rtk_sat"]
-            if sat > 0:
-                msg = f"Current location is {lat}, {lon} at {alt}m altitude."
+            qua = r["rtk_qua"]
+
+            lat_string = "South"
+            if lat > 0:
+                lat_string = "North"
+            else:
+                lat *= -1.0
+
+            lon_string = "West"
+            if lon > 0:
+                lon_string = "East"
+            else:
+                lon *= -1.0
+
+            if qua > 0:
+                msg = f"Your precise location is {lat} {lat_string}, {lon} {lon_string} at {alt}m altitude. "
                 return Message(timestamp=time.time(), message=msg)
             else:
                 return None
