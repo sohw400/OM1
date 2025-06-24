@@ -1,4 +1,5 @@
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from typing import List
 from unittest.mock import Mock, patch
 
@@ -53,25 +54,30 @@ async def test_simulator_orchestrator_initialization(mock_config):
     orchestrator = SimulatorOrchestrator(mock_config)
     assert orchestrator._config == mock_config
     assert len(orchestrator.promise_queue) == 0
-    assert len(orchestrator._simulator_threads) == 0
+    assert orchestrator._simulator_workers == 2
 
 
 @pytest.mark.asyncio
 async def test_start_simulators(orchestrator):
     """Test that simulators are started in separate threads."""
-    future = orchestrator.start()
+    try:
+        future = orchestrator.start()
 
-    # Verify threads are created and started
-    assert len(orchestrator._simulator_threads) == 2
-    for thread in orchestrator._simulator_threads.values():
-        assert thread.is_alive()
-        assert thread.daemon is True
+        assert isinstance(orchestrator._simulator_executor, ThreadPoolExecutor)
+        assert (
+            orchestrator._simulator_executor._max_workers
+            == orchestrator._simulator_workers
+        )
 
-    assert isinstance(future, asyncio.Future)
+        assert len(orchestrator._submitted_simulators) == len(
+            orchestrator._config.simulators
+        )
+        assert isinstance(future, asyncio.Future)
 
-    # Clean up threads
-    for thread in orchestrator._simulator_threads.values():
-        thread.join(timeout=1)
+        expected_simulator_names = {bg.name for bg in orchestrator._config.simulators}
+        assert orchestrator._submitted_simulators == expected_simulator_names
+    finally:
+        orchestrator.stop()
 
 
 @pytest.mark.asyncio
