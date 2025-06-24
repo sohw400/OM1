@@ -141,24 +141,27 @@ async def test_concurrent_simulator_operations(orchestrator):
     test_actions1 = [Action(type="test1", value="1")]
     test_actions2 = [Action(type="test2", value="2")]
 
-    # Start simulators
-    orchestrator.start()
+    try:
+        # Start simulators
+        orchestrator.start()
 
-    # Send multiple actions
-    await asyncio.gather(
-        orchestrator.promise(test_actions1), orchestrator.promise(test_actions2)
-    )
+        # Send multiple actions
+        await asyncio.gather(
+            orchestrator.promise(test_actions1), orchestrator.promise(test_actions2)
+        )
 
-    # Flush promises
-    done_promises, pending_promises = await orchestrator.flush_promises()
+        # Flush promises
+        done_promises, pending_promises = await orchestrator.flush_promises()
 
-    # Verify all promises are completed
-    assert len(done_promises) == 4  # 2 actions * 2 simulators
-    assert len(pending_promises) == 0
+        # Verify all promises are completed
+        assert len(done_promises) == 4  # 2 actions * 2 simulators
+        assert len(pending_promises) == 0
 
-    # Verify simulators received both actions
-    for simulator in orchestrator._config.simulators:
-        received_actions = simulator.actions_received
-        assert len(received_actions) == 2
-        assert test_actions1[0] in received_actions
-        assert test_actions2[0] in received_actions
+        # Verify simulators received both actions
+        for simulator in orchestrator._config.simulators:
+            received_actions = simulator.actions_received
+            assert len(received_actions) == 2
+            assert test_actions1[0] in received_actions
+            assert test_actions2[0] in received_actions
+    finally:
+        orchestrator.stop()

@@ -18,7 +18,7 @@ class ActionOrchestrator:
 
     promise_queue: T.List[asyncio.Task[T.Any]]
     _config: RuntimeConfig
-    _connector_works: int
+    _connector_workers: int
     _connector_executor: ThreadPoolExecutor
     _submitted_connectors: T.Set[str]
     _stop_event: threading.Event
@@ -26,9 +26,11 @@ class ActionOrchestrator:
     def __init__(self, config: RuntimeConfig):
         self._config = config
         self.promise_queue = []
-        self._connector_works = min(12, len(config.agent_actions))
+        self._connector_workers = (
+            min(12, len(config.agent_actions)) if config.agent_actions else 1
+        )
         self._connector_executor = ThreadPoolExecutor(
-            max_workers=self._connector_works,
+            max_workers=self._connector_workers,
         )
         self._submitted_connectors = set()
         self._stop_event = threading.Event()

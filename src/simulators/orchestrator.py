@@ -25,7 +25,9 @@ class SimulatorOrchestrator:
     def __init__(self, config: RuntimeConfig):
         self._config = config
         self.promise_queue = []
-        self._simulator_workers = min(12, len(config.simulators))
+        self._simulator_workers = (
+            min(12, len(config.simulators)) if config.simulators else 1
+        )
         self._simulator_executor = ThreadPoolExecutor(
             max_workers=self._simulator_workers,
         )

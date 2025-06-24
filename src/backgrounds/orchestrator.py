@@ -28,7 +28,9 @@ class BackgroundOrchestrator:
             Configuration object for the runtime.
         """
         self._config = config
-        self._background_workers = min(12, len(config.backgrounds))
+        self._background_workers = (
+            min(12, len(config.backgrounds)) if config.backgrounds else 1
+        )
         self._background_executor = ThreadPoolExecutor(
             max_workers=self._background_workers,
         )
