@@ -56,7 +56,7 @@ class SimulatorOrchestrator:
         simulator : Simulator
             The simulator to run
         """
-        while True:
+        while not self._stop_event.is_set():
             try:
                 simulator.tick()
             except Exception as e:
