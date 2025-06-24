@@ -93,7 +93,7 @@ class VLMVila(FuserInput[str]):
             if "vlm_reply" in json_message:
                 vlm_reply = json_message["vlm_reply"]
                 self.message_buffer.put(vlm_reply)
-                logging.info("Detected VLM message: %s", vlm_reply)
+                logging.debug("Detected VLM message: %s", vlm_reply)
         except json.JSONDecodeError:
             pass
 
