@@ -187,6 +187,12 @@ class OdomProvider:
 
         self.start()
 
+        self.file_name = f"odom_{time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
+        with open(self.file_name, "w") as f:
+            f.write(
+                "timestamp postion_x position_y position_z position_w orientation_x orientation_y orientation_z orientation_w\n"
+            )
+
     def start(self) -> None:
         """
         Start the Odom Provider.
@@ -337,6 +343,11 @@ class OdomProvider:
             self.x = round(pose.position.x, 3)
             self.y = round(pose.position.y, 3)
             logging.debug(f"odom:{self.x }x {self.y}y")
+
+            with open(self.file_name, "a") as f:
+                f.write(
+                    f"{self.timestamp} {pose.position.x} {pose.position.y} {pose.position.z} {pose.orientation.w} {pose.orientation.x} {pose.orientation.y} {pose.orientation.z}\n"
+                )
 
     @property
     def position(self) -> dict:
