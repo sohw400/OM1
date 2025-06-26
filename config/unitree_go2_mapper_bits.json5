@@ -54,7 +54,7 @@
         speed_x: 0.9,
         speed_yaw: 0.6,
         lateral_correction: 0.0,
-        yaw_correction: 0
+        yaw_correction: -0.05
       }
     },
     //{
