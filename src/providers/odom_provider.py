@@ -1,6 +1,7 @@
 import logging
 import math
 import multiprocessing as mp
+import os
 import threading
 import time
 from enum import Enum
@@ -187,7 +188,8 @@ class OdomProvider:
 
         self.start()
 
-        self.file_name = f"odom_{time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
+        os.makedirs("logs/spatial", exist_ok=True)
+        self.file_name = f"logs/spatial/odom_{time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
         with open(self.file_name, "w") as f:
             f.write(
                 "timestamp postion_x position_y position_z position_w orientation_x orientation_y orientation_z orientation_w\n"
