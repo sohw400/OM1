@@ -1,11 +1,10 @@
 import argparse
-import datetime
 import json
 import time
 
 import cv2
-from ultralytics import YOLO
 import numpy as np
+from ultralytics import YOLO
 
 # Load model
 # model = YOLO("yolov8n.pt")
@@ -31,12 +30,15 @@ parser.add_argument(
 print(parser.format_help())
 args = parser.parse_args()
 
+
 def mask_to_polygons(mask):
     """
     Convert a binary mask to polygons using OpenCV.
     """
     mask_uint8 = (mask * 255).astype(np.uint8)
-    contours, _ = cv2.findContours(mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(
+        mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
     polygons = []
     for contour in contours:
         contour = contour.squeeze()
@@ -45,6 +47,7 @@ def mask_to_polygons(mask):
         polygon = contour.flatten().tolist()
         polygons.append(polygon)
     return polygons
+
 
 def save_yolo_results_to_json(results, index, output_file):
     data = []
@@ -61,7 +64,11 @@ def save_yolo_results_to_json(results, index, output_file):
 
         masks = result.masks.data.cpu().numpy()
         class_ids = result.boxes.cls.cpu().numpy().astype(int)
-        labels = [result.names[i] for i in class_ids] if hasattr(result, 'names') else [str(i) for i in class_ids]
+        labels = (
+            [result.names[i] for i in class_ids]
+            if hasattr(result, "names")
+            else [str(i) for i in class_ids]
+        )
         bboxes = result.boxes.xyxy.cpu().numpy().tolist()
 
         frame_entry["bboxes"] = bboxes
@@ -72,13 +79,14 @@ def save_yolo_results_to_json(results, index, output_file):
             binary_mask = (mask > 0.5).astype(np.uint8)
             polygons = mask_to_polygons(binary_mask)
             # Convert each polygon to a single-line string
-            flat_polygons = ['[' + ','.join(map(str, poly)) + ']' for poly in polygons]
+            flat_polygons = ["[" + ",".join(map(str, poly)) + "]" for poly in polygons]
             frame_entry["polygons"].append(flat_polygons)
 
         data.append(frame_entry)
 
-    with open(output_file, 'a') as f:
+    with open(output_file, "a") as f:
         json.dump(data, f, indent=2)
+
 
 def set_best_resolution(cap, resolutions):
     for width, height in resolutions:
@@ -116,14 +124,14 @@ while cap.isOpened():
         break
 
     results = model.predict(source=frame)
-    
+
     segmented_image = None
-    
+
     if results:
-        segmented_image = cv2.cvtColor(results[0].plot(), cv2.COLOR_BGR2RGB) 
+        segmented_image = cv2.cvtColor(results[0].plot(), cv2.COLOR_BGR2RGB)
 
     save_yolo_results_to_json(results, frame_index, "yolo_log.json")
-    
+
     detections = []
     for r in results:
         for box in r.boxes:
@@ -154,4 +162,4 @@ while cap.isOpened():
 # Cleanup
 cap.release()
 cv2.destroyAllWindows()
-print(f"\nDetection logging complete")
+print("\nDetection logging complete")

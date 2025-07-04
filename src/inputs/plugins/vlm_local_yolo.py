@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import cv2
-from ultralytics import YOLO
 import numpy as np
+from ultralytics import YOLO
 
 from inputs.base import SensorConfig
 from inputs.base.loop import FuserInput
@@ -44,7 +44,6 @@ class Message:
     message: str
 
 
-
 def set_best_resolution(cap, resolutions):
     for width, height in resolutions:
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
@@ -64,6 +63,7 @@ def set_best_resolution(cap, resolutions):
     return int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(
         cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
     )
+
 
 # if working on Mac, please disable continuity camera on your iphone
 # Settings > General > AirPlay & Continuity, and turn off Continuity
@@ -153,7 +153,9 @@ class VLM_Local_YOLO(FuserInput[str]):
         Convert a binary mask to polygons using OpenCV.
         """
         mask_uint8 = (mask * 255).astype(np.uint8)
-        contours, _ = cv2.findContours(mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(
+            mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
         polygons = []
         for contour in contours:
             contour = contour.squeeze()
@@ -226,7 +228,11 @@ class VLM_Local_YOLO(FuserInput[str]):
 
                 masks = result.masks.data.cpu().numpy()
                 class_ids = result.boxes.cls.cpu().numpy().astype(int)
-                labels = [result.names[i] for i in class_ids] if hasattr(result, 'names') else [str(i) for i in class_ids]
+                labels = (
+                    [result.names[i] for i in class_ids]
+                    if hasattr(result, "names")
+                    else [str(i) for i in class_ids]
+                )
                 bboxes = result.boxes.xyxy.cpu().numpy().tolist()
 
                 frame_entry["bboxes"] = bboxes
@@ -237,7 +243,9 @@ class VLM_Local_YOLO(FuserInput[str]):
                     binary_mask = (mask > 0.5).astype(np.uint8)
                     polygons = self.mask_to_polygons(binary_mask)
                     # Convert each polygon to a single-line string
-                    flat_polygons = ['[' + ','.join(map(str, poly)) + ']' for poly in polygons]
+                    flat_polygons = [
+                        "[" + ",".join(map(str, poly)) + "]" for poly in polygons
+                    ]
                     frame_entry["polygons"].append(flat_polygons)
 
                 data.append(frame_entry)
