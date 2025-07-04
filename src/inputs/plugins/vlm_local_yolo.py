@@ -42,6 +42,20 @@ class Message:
     timestamp: float
     message: str
 
+def mask_to_polygons(mask):
+    """
+    Convert a binary mask to polygons using OpenCV.
+    """
+    mask_uint8 = (mask * 255).astype(np.uint8)
+    contours, _ = cv2.findContours(mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    polygons = []
+    for contour in contours:
+        contour = contour.squeeze()
+        if contour.ndim != 2 or contour.shape[0] < 3:
+            continue
+        polygon = contour.flatten().tolist()
+        polygons.append(polygon)
+    return polygons
 
 def set_best_resolution(cap, resolutions):
     for width, height in resolutions:
@@ -62,7 +76,6 @@ def set_best_resolution(cap, resolutions):
     return int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(
         cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
     )
-
 
 # if working on Mac, please disable continuity camera on your iphone
 # Settings > General > AirPlay & Continuity, and turn off Continuity
@@ -104,7 +117,7 @@ class VLM_Local_YOLO(FuserInput[str]):
         self.descriptor_for_LLM = "Eyes"
 
         # Load model
-        self.model = YOLO("yolov8n_aug.pt")
+        self.model = YOLO("yolo11n-seg.pt")
 
         self.write_to_local_file = False
         if self.config.log_file:
@@ -183,10 +196,6 @@ class VLM_Local_YOLO(FuserInput[str]):
 
         if self.have_cam:
 
-            ret, frame = self.cap.read()
-            self.frame_index += 1
-            timestamp = time.time()
-
             try:
                 o = self.odom.position
                 logging.debug(f"Odom data: {o}")
@@ -200,9 +209,40 @@ class VLM_Local_YOLO(FuserInput[str]):
             except Exception as e:
                 logging.error(f"Error parsing Odom: {e}")
 
-            results = self.model.predict(
-                source=frame, save=False, stream=True, verbose=False
-            )
+            ret, frame = self.cap.read()
+            self.frame_index += 1
+            timestamp = time.time()
+            results = self.model.predict(source=frame)
+
+            # segmented_image = None
+    
+            # if results:
+            #     segmented_image = cv2.cvtColor(results[0].plot(), cv2.COLOR_BGR2RGB) 
+
+            data = []
+            for result in results:
+                frame_entry = {}
+
+                if result.masks is None or result.boxes is None:
+                    continue
+
+                masks = result.masks.data.cpu().numpy()
+                class_ids = result.boxes.cls.cpu().numpy().astype(int)
+                labels = [result.names[i] for i in class_ids] if hasattr(result, 'names') else [str(i) for i in class_ids]
+                bboxes = result.boxes.xyxy.cpu().numpy().tolist()
+
+                frame_entry["bboxes"] = bboxes
+                frame_entry["labels"] = labels
+                frame_entry["polygons"] = []
+
+                for mask in masks:
+                    binary_mask = (mask > 0.5).astype(np.uint8)
+                    polygons = mask_to_polygons(binary_mask)
+                    # Convert each polygon to a single-line string
+                    flat_polygons = ['[' + ','.join(map(str, poly)) + ']' for poly in polygons]
+                    frame_entry["polygons"].append(flat_polygons)
+
+                data.append(frame_entry)
 
             detections = []
             for r in results:
@@ -229,7 +269,7 @@ class VLM_Local_YOLO(FuserInput[str]):
                         {
                             "frame": self.frame_index,
                             "timestamp": timestamp,
-                            "detections": detections,
+                            "data": data,
                             "odom_rockchip_ts": self.odom_rockchip_ts,
                             "odom_subscriber_ts": self.odom_subscriber_ts,
                             "odom_x": self.odom_x,
@@ -285,7 +325,6 @@ class VLM_Local_YOLO(FuserInput[str]):
         detections = raw_input
 
         if detections:
-
             for det in detections:
                 logging.debug(
                     f"{det['class']} ({det['confidence']:.2f}) -> {det['bbox']}"
