@@ -172,6 +172,13 @@ class VLM_Local_YOLO(FuserInput[str]):
         filename = f"dump/yolo_{unix_ts}Z.jsonl"
         return filename
 
+    def update_filename_img(self, frame_idx):
+        unix_ts = round(time.time(), 6)
+        logging.info(f"YOLO time: {unix_ts}")
+        unix_ts = str(unix_ts).replace(".", "_")
+        filename = f"dump/img_{frame_idx}_{unix_ts}Z.jpg"
+        return filename
+
     def get_top_detection(self, detections):
         """
         Returns the class label and bbox of the detection with the highest confidence.
@@ -216,6 +223,14 @@ class VLM_Local_YOLO(FuserInput[str]):
 
             ret, frame = self.cap.read()
             self.frame_index += 1
+
+            fn = self.update_filename_img(self.frame_index)
+            if frame and self.write_to_local_file:
+                cv2.imwrite(fn, frame)
+                logging.debug(f"Image saved successfully as {fn}")
+            else:
+                logging.debug("Error: Could not save frame from webcam.")
+
             timestamp = time.time()
             results = self.model.predict(source=frame)
 
