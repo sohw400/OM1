@@ -36,3 +36,4 @@ logs/
 
 *.jsonl
 system_hw_test/yolo_log.json
+*.jpg

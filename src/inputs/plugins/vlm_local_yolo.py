@@ -174,7 +174,7 @@ class VLM_Local_YOLO(FuserInput[str]):
 
     def update_filename_img(self, frame_idx):
         unix_ts = round(time.time(), 6)
-        logging.info(f"YOLO time: {unix_ts}")
+        #logging.info(f"IMG time: {unix_ts}")
         unix_ts = str(unix_ts).replace(".", "_")
         filename = f"dump/img_{frame_idx}_{unix_ts}Z.jpg"
         return filename
@@ -225,11 +225,15 @@ class VLM_Local_YOLO(FuserInput[str]):
             self.frame_index += 1
 
             fn = self.update_filename_img(self.frame_index)
-            if frame and self.write_to_local_file:
-                cv2.imwrite(fn, frame)
-                logging.debug(f"Image saved successfully as {fn}")
-            else:
-                logging.debug("Error: Could not save frame from webcam.")
+            #logging.info(f"filename {fn}")
+            try:
+                if len(frame) > 0 and self.write_to_local_file:
+                    cv2.imwrite(fn, frame)
+                    #logging.info(f"Image saved successfully as {fn}")
+                else:
+                    logging.error("Error: Could not save frame from webcam.")
+            except Exception as e:
+                    logging.error(f"Error saving IMG: {str(e)}")
 
             timestamp = time.time()
             results = self.model.predict(source=frame)
