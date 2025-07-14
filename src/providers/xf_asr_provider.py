@@ -104,6 +104,12 @@ class XFASRProvider:
         # End tag for iFlytek
         self.end_tag = "{\"end\": true}"
         
+        # Idle detection and reconnection
+        self._last_audio_time = time.time()
+        self._idle_timeout = 14  # Reconnect before 15s timeout
+        self._idle_check_thread = None
+        self._reconnecting = False
+        
         # Buffer for accumulating partial results
         self._partial_transcript = ""
         self._current_segment_id = -1
@@ -177,6 +183,8 @@ class XFASRProvider:
         
         logger.info(f"Connecting to iFlytek with language: {self.language_code}, translation: {self.enable_translation}")
         self.ws = create_connection(url)
+        self.connected = True
+        self._last_audio_time = time.time()
         
         # Start receive thread
         self.recv_thread = threading.Thread(target=self._receive_loop, daemon=True)
@@ -279,10 +287,13 @@ class XFASRProvider:
         audio_json : str
             JSON string containing base64 encoded audio data
         """
-        if not self.running or not self.ws:
+        if not self.running or not self.ws or self._reconnecting:
             return
         
         try:
+            # Update last audio time
+            self._last_audio_time = time.time()
+            
             # Parse the audio data
             audio_data = json.loads(audio_json)
             
@@ -292,8 +303,13 @@ class XFASRProvider:
             # Send raw audio bytes to iFlytek
             self.ws.send(audio_bytes)
             
+        except websocket.WebSocketConnectionClosedException:
+            logger.warning("WebSocket connection closed, will reconnect")
+            self._schedule_reconnect()
         except Exception as e:
             logger.error(f"Error handling audio data: {str(e)}")
+            if "Connection is already closed" in str(e):
+                self._schedule_reconnect()
     
     def _receive_loop(self):
         """Receive and process results from iFlytek"""
@@ -419,11 +435,20 @@ class XFASRProvider:
                     
                     elif action == "error":
                         error_desc = result_dict.get("desc", "Unknown error")
-                        logger.error(f"iFlytek error: {error_desc}")
+                        error_code = result_dict.get("code", "")
+                        logger.error(f"iFlytek error: {error_desc} (code: {error_code})")
+                        
+                        # Check for specific error codes
+                        if error_code in ["10700", "37005"]:
+                            # Idle timeout error
+                            logger.warning("Idle timeout detected, will reconnect")
+                            self._schedule_reconnect()
+                            return
+                        
                         self._send_to_callbacks(json.dumps({
                             "type": "error",
                             "message": f"ASR error: {error_desc}",
-                            "code": result_dict.get("code", ""),
+                            "code": error_code,
                             "sid": result_dict.get("sid", "")
                         }))
                         break
@@ -446,15 +471,89 @@ class XFASRProvider:
                 callback(message)
             except Exception as e:
                 logger.error(f"Error in message callback: {str(e)}")
-    
+
     def _cleanup_connection(self):
         """Clean up WebSocket connection"""
+        self.connected = False
         if self.ws:
             try:
                 self.ws.close()
             except:
                 pass
             self.ws = None
+        logger.info("Cleaned up iFlytek connection")
+        
+    def _idle_check_loop(self):
+        """Check for idle timeout and send keepalive or reconnect"""
+        while self.running:
+            try:
+                time.sleep(5)  # Check every 5 seconds
+                
+                if not self.ws or not self.connected or self._reconnecting:
+                    continue
+                
+                idle_time = time.time() - self._last_audio_time
+                
+                if idle_time > self._idle_timeout:
+                    logger.warning(f"Idle for {idle_time:.1f}s, sending keepalive")
+                    try:
+                        # Send a small silent audio chunk as keepalive
+                        # 160 samples of silence at 16kHz = 10ms
+                        silent_audio = b'\x00\x00' * 160
+                        self.ws.send(silent_audio)
+                        self._last_audio_time = time.time()
+                    except Exception as e:
+                        logger.error(f"Failed to send keepalive: {e}")
+                        self._schedule_reconnect()
+                        
+            except Exception as e:
+                logger.error(f"Error in idle check loop: {e}")
+    
+    def _schedule_reconnect(self):
+        """Schedule a reconnection attempt"""
+        if self._reconnecting:
+            return
+            
+        self._reconnecting = True
+        threading.Thread(target=self._reconnect, daemon=True).start()
+    
+    def _reconnect(self):
+        """Reconnect to iFlytek service"""
+        logger.info("Reconnecting to iFlytek...")
+        
+        try:
+            # Clean up old connection
+            self._cleanup_connection()
+            
+            # Wait a bit before reconnecting
+            time.sleep(1)
+            
+            if not self.running:
+                return
+            
+            # Reconnect
+            self._connect_to_xfyun()
+            
+            # Reset state
+            self._last_audio_time = time.time()
+            self._reconnecting = False
+            
+            logger.info("Successfully reconnected to iFlytek")
+            
+            # Send reconnection success message
+            self._send_to_callbacks(json.dumps({
+                "type": "connection",
+                "message": "Reconnected to iFlytek ASR after timeout"
+            }))
+            
+        except Exception as e:
+            logger.error(f"Failed to reconnect: {e}")
+            self._reconnecting = False
+            
+            # Retry after delay
+            if self.running:
+                time.sleep(5)
+                self._schedule_reconnect()
     
     def register_message_callback(self, message_callback: Optional[Callable]):
         """
@@ -488,6 +587,12 @@ class XFASRProvider:
             
             # Start audio stream
             self.audio_stream.start()
+            
+            # Start idle check thread
+            if not self._idle_check_thread or not self._idle_check_thread.is_alive():
+                self._idle_check_thread = threading.Thread(target=self._idle_check_loop, daemon=True)
+                self._idle_check_thread.start()
+                logger.info("Started idle check thread")
             
             # Setup remote stream if configured
             if self.stream_ws_client:
