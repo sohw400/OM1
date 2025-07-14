@@ -1,0 +1,52 @@
+{
+  "hertz": 0.01,
+  "name": "conversation",
+  "api_key": "",
+  "system_prompt_base": "",
+  "system_governance": "",
+  "system_prompt_examples": "用中文简洁地回答我。",
+  "agent_inputs": [
+    {
+      "type": "XFASRInput",
+      "config": {
+        "xfyun_app_id":"",
+        "xfyun_api_key":""
+      }
+    },
+    {
+      "type": "VLMOpenAIDetailed"
+    }
+  ],
+  "cortex_llm": {
+    "type": "OpenAILLM",
+    "config": {
+      "agent_name": "Spot",
+      "history_length": 5
+    }
+  },
+  "agent_actions": [
+    {
+      "name": "speak",
+      "llm_label": "speak",
+      "implementation": "passthrough",
+      "connector": "elevenlabs_tts",
+      "config": {
+        "asr_provider":"xf",
+        "xfyun_app_id":"",
+        "xfyun_api_key":""
+      }
+    },
+    {
+      "name": "face",
+      "llm_label": "emotion",
+      "implementation": "passthrough",
+      "connector": "ros2"
+    },
+    {
+      "name": "move",
+      "llm_label": "move",
+      "implementation": "passthrough",
+      "connector": "ros2"
+    }
+  ]
+}
