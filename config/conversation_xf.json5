@@ -1,7 +1,7 @@
 {
   "hertz": 0.01,
   "name": "conversation",
-  "api_key": "",
+  "api_key": "openmind_free",
   "system_prompt_base": "",
   "system_governance": "",
   "system_prompt_examples": "用中文简洁地回答我。",
