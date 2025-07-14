@@ -1,6 +1,7 @@
 from actions.base import ActionConfig, ActionConnector
 from actions.speak.interface import SpeakInput
 from providers.asr_provider import ASRProvider
+from providers.xf_asr_provider import XFASRProvider
 from providers.elevenlabs_tts_provider import ElevenLabsTTSProvider
 
 
@@ -22,12 +23,40 @@ class SpeakElevenLabsTTSConnector(ActionConnector[SpeakInput]):
         model_id = getattr(self.config, "model_id", "eleven_flash_v2_5")
         output_format = getattr(self.config, "output_format", "mp3_44100_128")
 
-        # Initialize ASR and TTS providers
-        self.asr = ASRProvider(
-            ws_url="wss://api-asr.openmind.org",
-            device_id=microphone_device_id,
-            microphone_name=microphone_name,
-        )
+        # Determine which ASR provider to use
+        asr_provider = getattr(self.config, "asr_provider", "google").lower()
+        
+        if asr_provider in ["xf"]:
+            # Initialize XF ASR provider
+            xfyun_app_id = getattr(self.config, "xfyun_app_id", "")
+            xfyun_api_key = getattr(self.config, "xfyun_api_key", "")
+
+            if xfyun_app_id == "":
+                logging.error(
+                    "XFYun App ID not provided for TTS detection."
+                )   
+
+            if xfyun_api_key == "":
+                logging.error(
+                    "XFYun API Key not provided for TTS detection."
+                )   
+
+            self.asr = XFASRProvider(
+                app_id=xfyun_app_id,
+                api_key=xfyun_api_key,
+                device_id=microphone_device_id,
+                microphone_name=microphone_name,
+                language_code=getattr(self.config, "language_code", "chinese"),
+            )
+        else:
+            # Initialize Google ASR provider (default)
+            self.asr = ASRProvider(
+                ws_url="wss://api-asr.openmind.org",
+                device_id=microphone_device_id,
+                microphone_name=microphone_name,
+            )
+
+        # Initialize TTS provider
         self.tts = ElevenLabsTTSProvider(
             url="https://api.openmind.org/api/core/elevenlabs/tts",
             api_key=api_key,
