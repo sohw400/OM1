@@ -1,11 +1,12 @@
 import logging
+from typing import Optional
 
 import zenoh
+from zenoh import ZBytes
 
-from zenoh_idl import nav_msgs
+from zenoh_idl import geometry_msgs, nav_msgs
 
 from .singleton import singleton
-from .zenoh_listener_provider import ZenohListenerProvider
 
 status_map = {
     0: "UNKNOWN",
@@ -19,26 +20,40 @@ status_map = {
 
 
 @singleton
-class UnitreeGo2NavigationProvider(ZenohListenerProvider):
+class UnitreeGo2NavigationProvider:
     """
-    AMCL Provider for Unitree Go2 robot.
+    Navigation Provider for Unitree Go2 robot.
     """
 
-    def __init__(self, topic: str = "navigate_to_pose/_action/status"):
+    def __init__(
+        self,
+        navigation_status_topic: str = "navigate_to_pose/_action/status",
+        goal_pose_topic: str = "goal_pose",
+    ):
         """
         Initialize the Unitree Go2 Navigation Provider with a specific topic.
 
         Parameters
         ----------
-        topic : str, optional
+        navigation_status_topic : str, optional
             The topic on which to subscribe for navigation messages (default is "navigate_to_pose/_action/status").
+        goal_pose_topic : str, optional
+            The topic on which to publish goal poses (default is "goal_pose").
         """
-        super().__init__(topic)
-        logging.info(
-            "Unitree Go2 Navigation Provider initialized with topic: %s", topic
-        )
+        self.session: Optional[zenoh.Session] = None
 
+        try:
+            self.session = zenoh.open(zenoh.Config())
+            logging.info("Zenoh client opened")
+        except Exception as e:
+            logging.error(f"Error opening Zenoh client: {e}")
+
+        self.navigation_status_topic = navigation_status_topic
         self.navigation_status = "UNKNOWN"
+
+        self.goal_pose_topic = goal_pose_topic
+
+        self.running: bool = False
 
     def navigation_status_message_callback(self, data: zenoh.Sample):
         """
@@ -67,12 +82,43 @@ class UnitreeGo2NavigationProvider(ZenohListenerProvider):
         """
         Start the navigation provider by registering the message callback and starting the listener.
         """
+        if self.session is None:
+            logging.error(
+                "Cannot start navigation provider; Zenoh session is not available."
+            )
+            return
+
         if not self.running:
-            self.register_message_callback(self.navigation_status_message_callback)
+            self.session.declare_subscriber(
+                self.navigation_status_topic, self.navigation_status_message_callback
+            )
+            logging.info(
+                "Subscribed to navigation status topic: %s",
+                self.navigation_status_topic,
+            )
+
             self.running = True
             logging.info("Navigation Provider started and listening for messages")
-        else:
-            logging.warning("Navigation Provider is already running")
+            return
+
+        logging.warning("Navigation Provider is already running")
+
+    def publish_goal_pose(self, pose: geometry_msgs.PoseStamped):
+        """
+        Publish a goal pose to the navigation topic.
+
+        Parameters
+        ----------
+        pose : nav_msgs.PoseStamped
+            The goal pose to be published.
+        """
+        if self.session is None:
+            logging.error("Cannot publish goal pose; Zenoh session is not available.")
+            return
+
+        payload = ZBytes(pose.serialize())
+        self.session.put(self.goal_pose_topic, payload)
+        logging.info("Published goal pose to topic: %s", self.goal_pose_topic)
 
     @property
     def navigation_state(self) -> str:

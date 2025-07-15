@@ -21,6 +21,8 @@ class ZenohListenerProvider:
         topic : str, optional
             The topic on which to subscribe messages (default is "speech").
         """
+        self.session: Optional[zenoh.Session] = None
+
         try:
             self.session = zenoh.open(zenoh.Config())
             logging.info("Zenoh client opened")
