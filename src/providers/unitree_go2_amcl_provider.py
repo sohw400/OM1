@@ -1,9 +1,11 @@
 import logging
+from typing import Optional
 
 import numpy as np
 import zenoh
 
 from zenoh_idl import nav_msgs
+from zenoh_idl.geometry_msgs import Pose
 
 from .singleton import singleton
 from .zenoh_listener_provider import ZenohListenerProvider
@@ -36,6 +38,7 @@ class UnitreeGo2AMCLProvider(ZenohListenerProvider):
         super().__init__(topic)
         logging.info("AMCL Provider initialized with topic: %s", topic)
 
+        self.localization_pose: Optional[Pose] = None
         self.localization_status = False
         self.pose_tolerance = pose_tolerance
         self.yaw_tolerance = yaw_tolerance
@@ -55,17 +58,19 @@ class UnitreeGo2AMCLProvider(ZenohListenerProvider):
             )
             logging.debug("Received AMCL message: %s", message)
             covariance = message.covariance
+
             pos_uncertainty = np.sqrt(covariance[0] + covariance[7])
             yaw_uncertainty = np.sqrt(covariance[35])
+
             self.localization_status = (
                 pos_uncertainty < self.pose_tolerance
                 and yaw_uncertainty < self.yaw_tolerance
             )
+            self.localization_pose = message.pose
             logging.info(
-                "Localization status: %s, Position uncertainty: %.2f, Yaw uncertainty: %.2f",
+                "Localization Status: %s, Pose: %s",
                 self.localization_status,
-                pos_uncertainty,
-                yaw_uncertainty,
+                self.localization_pose,
             )
         else:
             logging.warning("Received empty AMCL message")
@@ -92,3 +97,15 @@ class UnitreeGo2AMCLProvider(ZenohListenerProvider):
             True if the robot is localized, False otherwise.
         """
         return self.localization_status
+
+    @property
+    def pose(self) -> Optional[Pose]:
+        """
+        Get the current localization pose.
+
+        Returns
+        -------
+        Optional[Pose]
+            The current pose if available, None otherwise.
+        """
+        return self.localization_pose
