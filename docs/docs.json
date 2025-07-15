@@ -27,15 +27,15 @@
                     {
                         "group": "Getting Started",
                         "pages": [
-                            "get-started/0_introduction",
-                            "get-started/1_get-started",
-                            "get-started/2_architecture"
+                            "developing/0_introduction",
+                            "developing/1_get-started",
+                            "developing/2_architecture"
                         ]
                     },
                     {
                         "group": "Input Plugins",
                         "pages": [
-                            "get-started/4_inputs",
+                            "developing/4_inputs",
                             "robotics/gps_compass",
                             {
                                 "group": "RPLidar",
@@ -50,13 +50,13 @@
                     {
                         "group": "LLM Integration",
                         "pages": [
-                            "get-started/5_llms"
+                            "developing/5_llms"
                         ]
                     },
                     {
                         "group": "Action Plugins",
                         "pages": [
-                            "get-started/6_actions"
+                            "developing/6_actions"
                         ]
                     },
                     {

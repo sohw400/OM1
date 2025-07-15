@@ -28,7 +28,7 @@ Note - In addition to the core loop running at `self.config.hertz`, a robot will
 
 This system diagram illustrates some of OM1's layers and modules.
 
-<img src="../assets/om1-architecture.png" alt="Architecture Diagram" style="width:50%;">
+<img src="/assets/om1-architecture.png" alt="Architecture Diagram" />
 
 ### Raw Sensor Layer
 
@@ -102,4 +102,3 @@ In many cases, this is where AI decisions are mapped onto existing ROS2 function
 ### Overall System Data Flow
 
 Raw Sensors → AI Captioning/Compression (Audio, LIDAR, Spatial RAG, Vision models) → NLDB → Data Fuser → AI Decision Layer (Emergency Responder LLM, Core LLM, Coach LLM) → HAL → Robot Actions ("Foundational" models, ROS2 code, movement policies, action models)
-
