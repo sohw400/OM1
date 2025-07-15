@@ -1,5 +1,3 @@
-# OM1
-
 ## Install Zenoh Middleware
 
 [Zenoh](https://zenoh.io) is a pub/sub/query protocol unifying data in motion, data at rest and computations. You need two pieces - the `eclipse-zenoh` python libary and the Zenoh daemon (`zenohd`). Your Python project needs `eclipse-zenoh`, which is already added to OM1's `pyproject.toml`. 
@@ -23,7 +21,7 @@ $ sudo apt update
 $ sudo apt install zenoh 
 ```
 
-## Starting/testing the router
+## Starting/testing the Router
 
 In a separate terminal window, start the router:
 
@@ -38,7 +36,7 @@ Testing:
 zenohd --help
 ```
 
-## Installing the persistent backend
+## Installing the Persistent Backend
 
 See https://github.com/eclipse-zenoh/zenoh-backend-filesystem?tab=readme-ov-file#how-to-install-it
 

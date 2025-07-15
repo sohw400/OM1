@@ -9,9 +9,7 @@ OM1's LLM integration is intended to make it easy to (1) send `input` informatio
 
 ## LLM Code Location
 
-LLM plugins are located in:
-
-[**Code**](https://github.com/OpenmindAGI/OM1/tree/main/src/llm/plugins)
+LLM plugins are located in `src/llm/plugins`: [**Code**](https://github.com/OpenmindAGI/OM1/tree/main/src/llm/plugins).
 
 ## How it Works - Single-Agent LLM Integration
 
@@ -35,8 +33,7 @@ The standard `pydantic` output model is defined in `src/llm/output_model.py`.
 
 ## LLM Configuration
 
-```jsonl
-# Example configuration
+```bash
   "cortex_llm": {
     "type": "OpenAILLM",    // The class name of the LLM plugin you wish to use
     "config": {

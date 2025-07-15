@@ -7,7 +7,7 @@ description: "Configuration"
 
 Agents are configured via JSON5 files in the `/config` directory. The configuration file is used to define the LLM `system prompt`, agent's inputs, LLM configuration, and actions etc. Here is an example of the configuration file:
 
-```jsonl Configuration
+```python
 {
   "hertz": 0.5,
   "name": "agent_name",
@@ -78,7 +78,7 @@ Agents are configured via JSON5 files in the `/config` directory. The configurat
 
 Example configuration for the agent_inputs section:
 
-```jsonl
+```python
   "agent_inputs": [
     {
       "type": "GovernanceEthereum"
@@ -114,7 +114,7 @@ The `cortex_llm` field allow you to configure the Large Language Model (LLM) use
 
 Here is an example configuration of the `cortex_llm` showing (deprecated) use of a single LLM to generate decisions:
 
-```jsonl
+```python
   "cortex_llm": {
     "type": "OpenAILLM",
     "config": {
@@ -127,7 +127,6 @@ Here is an example configuration of the `cortex_llm` showing (deprecated) use of
 ```
 
 * **type**: Specifies the LLM plugin.
-
 * **config**: LLM configuration, including the API endpoint (`base_url`), `agent_name`, and `history_length`.
 
 You can directly access other OpenAI style endpoints by specifying a custom API endpoint in your configuration file. To do this, provide a suitable `base_url` and the `api_key` for OpenAI, DeepSeek, or other providers. Possible `base_url` choices include:
@@ -141,7 +140,7 @@ You can implement your own LLM endpoints or use more sophisticated approaches su
 
 Lists the simulation modules used by the agent. Here is an example configuration for the `simulators` section:
 
-```jsonl
+```python
   "simulators": [
     {
       "type": "WebSim",
@@ -160,7 +159,7 @@ Lists the simulation modules used by the agent. Here is an example configuration
 
 Defines the agent's available capabilities, including action names, their implementation, and the connector used to execute them. Here is an example configuration for the `agent_actions` section:
 
-```jsonl
+```python
   "agent_actions": [
     {
       "name": "move",

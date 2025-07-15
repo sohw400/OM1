@@ -29,23 +29,6 @@ The Speech and TTS action plugin allows agents to speak using with a text-to-spe
 
 [**Code**](https://github.com/OpenmindAGI/OM1/blob/main/src/actions/speak/connector/elevenlabs_tts.py)
 
-### Configuration parameters
-
-```json
-// Example usage
-config = ActionConfig(
-    api_key="your_api_key",
-    elevenlabs_api_key="your_elevenlabs_key",
-    voice_id="custom_voice_id",
-    model_id="eleven_flash_v2_5",
-    output_format="mp3_44100_128",
-    microphone_device_id="mic_id",
-    speaker_device_id="speaker_id"
-)
-connector = SpeakElevenLabsTTSConnector(config)
-await connector.connect(SpeakInput(action="Hello, world!"))
-```
-
 ## Adding New Actions
 
 Each action consists of:
