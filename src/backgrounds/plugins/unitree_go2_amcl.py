@@ -12,6 +12,6 @@ class UnitreeGo2AMCL(Background):
     def __init__(self, config: BackgroundConfig = BackgroundConfig()):
         super().__init__(config)
 
-        self.unitree_go2_acml_provider = UnitreeGo2AMCLProvider()
-        self.unitree_go2_acml_provider.start()
+        self.unitree_go2_amcl_provider = UnitreeGo2AMCLProvider()
+        self.unitree_go2_amcl_provider.start()
         logging.info("Unitree Go2 AMCL Provider initialized in background")

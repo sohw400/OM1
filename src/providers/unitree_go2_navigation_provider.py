@@ -109,7 +109,7 @@ class UnitreeGo2NavigationProvider:
 
         Parameters
         ----------
-        pose : nav_msgs.PoseStamped
+        pose : geometry_msgs.PoseStamped
             The goal pose to be published.
         """
         if self.session is None:
