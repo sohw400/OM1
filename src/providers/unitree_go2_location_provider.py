@@ -1,3 +1,4 @@
+import inspect
 import json
 import logging
 import os
@@ -6,6 +7,7 @@ from typing import Dict, Optional
 
 from zenoh_idl.geometry_msgs import Pose, PoseStamped
 
+from .function_call_provider import FunctionGenerator, LLMFunction
 from .singleton import singleton
 from .unitree_go2_amcl_provider import UnitreeGo2AMCLProvider
 from .unitree_go2_navigation_provider import UnitreeGo2NavigationProvider
@@ -86,6 +88,33 @@ class UnitreeGo2LocationProvider:
 
         logging.info("Location Provider started")
 
+    def generate_llm_functions(self) -> Dict:
+        """
+        Generate OpenAI function schemas for all decorated methods.
+
+        Returns
+        -------
+        Dict
+            Dictionary containing function schemas for LLM.
+        """
+        return FunctionGenerator.generate_functions_from_class(self)
+
+    def get_llm_function_mapping(self) -> Dict:
+        """
+        Get mapping of function names to actual methods for execution.
+
+        Returns
+        -------
+        Dict
+            Dictionary mapping function names to their corresponding methods.
+        """
+        mapping = {}
+        for _, method in inspect.getmembers(self, predicate=inspect.ismethod):
+            if hasattr(method, "_llm_function") and method._llm_function:
+                mapping[method._llm_name] = method
+        return mapping
+
+    @LLMFunction("Get the robot's current location and localization status")
     def get_current_location(self) -> Dict:
         """
         Get the current location of the robot.
@@ -133,6 +162,9 @@ class UnitreeGo2LocationProvider:
             "pose": pose_dict,
         }
 
+    @LLMFunction(
+        "Save the robot's current location with a name and optional description"
+    )
     def record_location(self, location_name: str, description: str = "") -> Dict:
         """
         Record the current location with a given name.
@@ -190,6 +222,7 @@ class UnitreeGo2LocationProvider:
             "location_data": location_data,
         }
 
+    @LLMFunction("Get all saved locations")
     def get_saved_locations(self) -> Dict:
         """
         Get all saved locations.
@@ -205,6 +238,7 @@ class UnitreeGo2LocationProvider:
             "locations": self.saved_locations,
         }
 
+    @LLMFunction("Get detailed information about a specific saved location")
     def get_location_info(self, location_name: str) -> Dict:
         """
         Get information about a specific saved location.
@@ -231,6 +265,7 @@ class UnitreeGo2LocationProvider:
             "location_data": self.saved_locations[location_name],
         }
 
+    @LLMFunction("Command the robot to navigate to a saved location")
     def navigate_to_location(self, location_name: str) -> Dict:
         """
         Navigate to a saved location.
@@ -284,6 +319,7 @@ class UnitreeGo2LocationProvider:
                 "message": f"Error initiating navigation: {str(e)}",
             }
 
+    @LLMFunction("Delete a saved location")
     def delete_location(self, location_name: str) -> Dict:
         """
         Delete a saved location.
@@ -313,6 +349,7 @@ class UnitreeGo2LocationProvider:
             "deleted_location": deleted_location,
         }
 
+    @LLMFunction("Get current navigation and localization status")
     def get_navigation_status(self) -> Dict:
         """
         Get current navigation status.
@@ -329,6 +366,7 @@ class UnitreeGo2LocationProvider:
             "localization_status": self.amcl_provider.is_localized,
         }
 
+    @LLMFunction("Get a list of all saved location names")
     def list_location_names(self) -> Dict:
         """
         Get a list of all saved location names.
@@ -345,6 +383,7 @@ class UnitreeGo2LocationProvider:
             "location_names": location_names,
         }
 
+    @LLMFunction("Calculate the distance from current position to a saved location")
     def get_distance_to_location(self, location_name: str) -> Dict:
         """
         Calculate approximate distance to a saved location.
@@ -398,6 +437,7 @@ class UnitreeGo2LocationProvider:
             },
         }
 
+    @LLMFunction("Update the description of a saved location")
     def update_location_description(
         self, location_name: str, new_description: str
     ) -> Dict:
