@@ -44,13 +44,101 @@ The standard `pydantic` output model is defined in `src/llm/output_model.py`.
 
 # Multi-Agent LLM Integration (`post /agent`)
 
-The Multi-Agent robotics endpoint (accessed via `post /agent`) accepts fused data and routes them to a collaborative multi-agent system, providing a powerful way to solve more complex robotics tasks.
+The Multi-Agent endpoint (accessed via `post /api/core/agent`) utilizes a collaborative system of specialized agents to process complex robotics tasks.
 
-## Key Features
+## Agent Architecture
 
-- **Collaborative Intelligence**: Multiple specialized agents work together to solve complex problems
-- **Dynamic Timescales**: Depending on the robot's immedaite situation, the LLMs will respond quickly (within 300 ms for `emergency actions`) or more slowly (within 2 seconds)   
-- **Compatible Interface**: Uses the same pattern as standard single-agent LLM implementations
+The system employs four primary agents that work together:
+
+- **Navigation Agent**: Processes spatial and movement-related tasks
+- **Perception Agent**: Handles sensory input analysis and environmental understanding
+- **RAG Agent**: Provides retrieval-augmented generation capabilities using the user's knowledge base
+- **Team Agent**: Synthesizes outputs from all agents into a unified response
+
+## API Endpoint
+
+```python
+@api_core_agent.route("/agent", methods=["POST"])
+@flexible_api_auth(limit=0, period=60)
+```
+
+### Request Format
+
+```json
+{
+    "model": "gpt-4.1-nano",
+    "system_prompt": "System instructions for the agents",
+    "inputs": "User input or sensor data",
+    "available_actions": ["move", "speak", "grab"],
+    "response_format": {}  // Optional structured output schema
+}
+```
+
+### Response Structure
+
+```json
+{
+    "content": "Synthesized response from team agent",
+    "model": "gpt-4.1-nano",
+    "agent_contents": {
+        "team_agent": "Team agent output",
+        "navigation_agent": "Navigation agent output",
+        "perception_agent": "Perception agent output",
+        "rag_agent": "RAG agent context"
+    },
+    "conversation_id": "unique-conversation-id",
+    "usage": {
+        "team_agent": {},
+        "navigation_agent": {},
+        "perception_agent": {},
+        "rag_agent": {}
+    },
+    "duration": {
+        "team_agent": 0.5,
+        "navigation_agent": 0.3,
+        "perception_agent": 0.4,
+        "rag_agent": 0.2
+    },
+    "total_duration": 1.4
+}
+```
+
+## Supported Models
+
+```python
+SUPPORTED_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano"]
+```
+
+## Medical Agent Variant
+
+A specialized endpoint for medical applications:
+
+```python
+@api_core_agent.route("/agent/medical", methods=["POST"])
+```
+
+This variant uses:
+- **Verifier Agent**: Validates medical information
+- **Questioner Agent**: Manages medical consultation flow
+
+## Memory Management
+
+The system includes memory capabilities:
+
+```python
+@api_core_agent.route("/agent/memory", methods=["DELETE"])
+```
+
+- Session-based memory storage via API keys
+- Graph memory integration using Zep
+- Conversation history tracking
+
+## RAG Integration
+
+The RAG agent connects to the knowledge base system (`/api/core/rag/*` endpoints) to:
+- Retrieve relevant documents during agent processing
+- Provide context-aware responses
+- Access user-uploaded documents and files
 
 ## Getting Started
 
@@ -62,15 +150,8 @@ uv run src/run.py multiagent
 
 ## Technical Details
 
-The `MultiLLM` module sends requests to the endpoint at `https://api.openmind.org/api/core/agent`. Like for the single agent LLM integration, the request includes:
-
-- System prompt context
-- User inputs
-- Available actions for the agents
-
-This information then flows to three interacting LLMs, which work together to decide on response priority and specific response actions.  
-
-## Use Cases
-
-- **Robotics**: Interface with and control physical systems through natural language.
-- **Complex Decision Making**: Combine multiple specialized agents for better reasoning.
+The multi-agent system:
+- Processes navigation, perception, and RAG queries in parallel using `asyncio.gather()`
+- Sends results to the team agent for synthesis
+- Returns comprehensive response with individual agent outputs
+- Tracks usage and duration metrics for each agent
