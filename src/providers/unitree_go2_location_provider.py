@@ -5,7 +5,8 @@ import os
 from datetime import datetime
 from typing import Dict, Optional
 
-from zenoh_idl.geometry_msgs import Pose, PoseStamped
+from zenoh_idl.geometry_msgs import Point, Pose, PoseStamped, Quaternion
+from zenoh_idl.std_msgs import Header, Time
 
 from .function_call_provider import FunctionGenerator, LLMFunction
 from .singleton import singleton
@@ -39,6 +40,10 @@ class UnitreeGo2LocationProvider:
         self.locations_file = locations_file
 
         self.saved_locations: Dict[str, Dict] = self._load_locations()
+        if self.saved_locations:
+            logging.info(
+                f"Loaded {self.locations_file} with {self.saved_locations} saved locations"
+            )
 
         self.running: bool = False
 
@@ -181,6 +186,8 @@ class UnitreeGo2LocationProvider:
         Dict
             Dictionary containing success status and message.
         """
+        location_name = location_name.strip().lower()
+
         if not self.amcl_provider.is_localized:
             return {
                 "success": False,
@@ -253,6 +260,8 @@ class UnitreeGo2LocationProvider:
         Dict
             Dictionary containing location information.
         """
+        location_name = location_name.strip().lower()
+
         if location_name not in self.saved_locations:
             return {
                 "success": False,
@@ -280,6 +289,8 @@ class UnitreeGo2LocationProvider:
         Dict
             Dictionary containing navigation command status.
         """
+        location_name = location_name.strip().lower()
+
         if location_name not in self.saved_locations:
             return {
                 "success": False,
@@ -289,19 +300,26 @@ class UnitreeGo2LocationProvider:
         location_data = self.saved_locations[location_name]
         pose_data = location_data["pose"]
 
-        goal_pose = PoseStamped()
-        goal_pose.header.frame_id = "map"
-        goal_pose.header.stamp.sec = int(datetime.now().timestamp())
-        goal_pose.header.stamp.nanosec = int((datetime.now().timestamp() % 1) * 1e9)
+        timestamp = Time(
+            sec=int(datetime.now().timestamp()),
+            nanosec=int((datetime.now().timestamp() % 1) * 1e9),
+        )
+        header = Header(stamp=timestamp, frame_id="map")
 
-        goal_pose.pose.position.x = pose_data["position"]["x"]
-        goal_pose.pose.position.y = pose_data["position"]["y"]
-        goal_pose.pose.position.z = pose_data["position"]["z"]
+        position = Point(
+            x=pose_data["position"]["x"],
+            y=pose_data["position"]["y"],
+            z=pose_data["position"]["z"],
+        )
+        orientation = Quaternion(
+            x=pose_data["orientation"]["x"],
+            y=pose_data["orientation"]["y"],
+            z=pose_data["orientation"]["z"],
+            w=pose_data["orientation"]["w"],
+        )
+        pose = Pose(position=position, orientation=orientation)
 
-        goal_pose.pose.orientation.x = pose_data["orientation"]["x"]
-        goal_pose.pose.orientation.y = pose_data["orientation"]["y"]
-        goal_pose.pose.orientation.z = pose_data["orientation"]["z"]
-        goal_pose.pose.orientation.w = pose_data["orientation"]["w"]
+        goal_pose = PoseStamped(header=header, pose=pose)
 
         try:
             self.navigation_provider.publish_goal_pose(goal_pose)
@@ -334,6 +352,8 @@ class UnitreeGo2LocationProvider:
         Dict
             Dictionary containing deletion status.
         """
+        location_name = location_name.strip().lower()
+
         if location_name not in self.saved_locations:
             return {
                 "success": False,
@@ -398,6 +418,8 @@ class UnitreeGo2LocationProvider:
         Dict
             Dictionary containing distance information.
         """
+        location_name = location_name.strip().lower()
+
         if location_name not in self.saved_locations:
             return {
                 "success": False,
@@ -456,6 +478,8 @@ class UnitreeGo2LocationProvider:
         Dict
             Dictionary containing update status.
         """
+        location_name = location_name.strip().lower()
+
         if location_name not in self.saved_locations:
             return {
                 "success": False,
