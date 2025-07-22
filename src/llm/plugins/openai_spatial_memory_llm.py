@@ -108,9 +108,25 @@ class OpenAISpatialMemoryLLM(LLM[R]):
             parsing fails.
         """
         try:
+            # Add function calls to the prompt
+            if self.available_functions:
+                prompt += "\n\nAVAILABLE FUNCTIONS:\n"
+                for func in self.available_functions.values():
+                    prompt += f'- {func["function"]["name"]}: {func["function"]["description"]}\n'
+                available_locations = (
+                    self.unitree_go2_location_provider.list_location_names()
+                )
+                if available_locations:
+                    prompt += "\nAVAILABLE LOCATIONS:\n"
+                    for loc in available_locations["location_names"]:
+                        prompt += f"- {loc}\n"
+
+                prompt += (
+                    "\nPlease use the available functions to follow the instructions."
+                )
+
             logging.info(f"OpenAI LLM input: {prompt}")
             logging.info(f"OpenAI LLM messages: {messages}")
-            # logging.info(f"OpenAI LLM output model: {self._output_model}")
 
             self.io_provider.llm_start_time = time.time()
 

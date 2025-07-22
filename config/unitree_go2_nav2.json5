@@ -34,10 +34,13 @@
     },
     {
       "type": "UnitreeGo2Battery"
-    }
+    },
+    {
+      "type": "GoogleASRInput"
+    },
   ],
   "cortex_llm": {
-    "type": "OpenAILLM",
+    "type": "OpenAISpatialMemoryLLM",
     "config": {
       "agent_name": "Bits",
       "history_length": 2
@@ -54,6 +57,9 @@
     },
     {
       "type": "UnitreeGo2Navigation",
+    },
+    {
+      "type": "UnitreeGo2Location",
     }
   ]
 }
