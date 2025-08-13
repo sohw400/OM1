@@ -1,0 +1,33 @@
+{
+  hertz: 0.001,
+  name: "iris",
+  unitree_ethernet: "eth0",
+  api_key: "openmind_free",
+  system_prompt_base: "",
+  system_governance: "",
+  system_prompt_examples: "",
+  agent_inputs: [
+    {
+      "type": "GoogleASRInput"
+    }
+  ],
+  cortex_llm: {
+    type: "OpenAILLM",
+    config: {
+      agent_name: "Iris",
+      history_length: 0,
+    },
+  },
+  agent_actions: [
+    {
+      name: "move_g1_autonomy",
+      llm_label: "move",
+      connector: "unitree_sdk",
+    },
+    {
+      name: "emotion",
+      llm_label: "emotion",
+      connector: "unitree_sdk",
+    },
+  ],
+}
