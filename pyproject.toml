@@ -3,7 +3,7 @@ name = "om1"
 version = "0.1.0"
 description = "OM1 - a modern agent and robotics runtime system"
 readme = "README.md"
-requires-python = ">=3.10,<3.11"
+requires-python = ">=3.10"
 dependencies = [
     "ultralytics",
     "soundfile",
@@ -39,8 +39,8 @@ dependencies = [
     "py-mjpeg",
     "fastapi>=0.110.0",
     "uvicorn>=0.27.1",
-    "websockets>=12.0","om1-modules @ git+https://github.com/OpenMind/om1-modules.git@4f8c5f4887b5b384d1e0dcc83cca783e70f7582d",
-    
+    "websockets>=12.0",
+    "om1-modules @ git+https://github.com/OpenMind/om1-modules.git@4f8c5f4887b5b384d1e0dcc83cca783e70f7582d",
     "aiohttp>=3.9.3",
     "python-multipart>=0.0.9",
     "jinja2>=3.1.3",
