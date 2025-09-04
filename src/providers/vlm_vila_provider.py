@@ -5,7 +5,6 @@ from om1_utils import ws
 from om1_vlm import VideoStream
 
 from .singleton import singleton
-from pathlib import Path
 
 
 @singleton
@@ -36,33 +35,9 @@ class VLMVilaProvider:
         self.stream_ws_client: Optional[ws.Client] = (
             ws.Client(url=stream_url) if stream_url else None
         )
-        repo_root = self._find_om1_root(Path(__file__))
-        models_dir = (repo_root / "models") if repo_root else None
-        if models_dir:
-            engine_path = str((models_dir / "scrfd_2.5g_640.engine").resolve())
         self.video_stream: VideoStream = VideoStream(
-            self.ws_client.send_message, fps=fps, blur_enabled=(engine_path is not None), 
-            scrfd_engine=engine_path,
-            scrfd_input= "input.1", scrfd_size=640,verbose=True
+            self.ws_client.send_message, fps=fps
         )
-    
-
-    def _find_om1_root(self, start: Path) -> Path | None:
-        """
-        Walk up from `start` to find a directory literally named 'OM1'.
-        As a fallback, pick the first ancestor that contains a 'models' dir.
-        """
-        start = start.resolve()
-        for p in (start, *start.parents):
-            if p.name == "OM1" and (p / "models").is_dir():
-                return p
-
-        # Fallback: first ancestor that has a models/ folder
-        for p in (start, *start.parents):
-            if (p / "models").is_dir():
-                return p
-
-        return None
 
     def register_frame_callback(self, video_callback: Optional[Callable]):
         """

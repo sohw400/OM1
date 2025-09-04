@@ -76,19 +76,38 @@ class VLMVilaProviderBlurFace:
     def register_frame_callback(
         self, video_callback: Optional[Callable[[str], None]]
     ) -> None:
-        """Add an extra per-frame callback (receives base64 JPEG)."""
+        """
+        Register a callback for processing video frames.
+
+        Parameters
+        ----------
+        video_callback : callable
+            The callback function to process video frames.
+        """
         if video_callback:
             self.video_stream.register_frame_callback(video_callback)
 
     def register_message_callback(
         self, message_callback: Optional[Callable[[str], None]]
     ) -> None:
-        """Register a callback to receive messages from the VLM WebSocket."""
+        """
+        Register a callback for processing VLM results.
+
+        Parameters
+        ----------
+        callback : callable
+            The callback function to process VLM results.
+        """
         if message_callback:
             self.ws_client.register_message_callback(message_callback)
 
     def start(self) -> None:
-        """Start WebSockets and the video pipeline."""
+        """
+        Start the VLM provider.
+
+        Initializes and starts the websocket client, video stream, and processing thread
+        if not already running.
+        """
         if self.running:
             logging.warning("VLM provider is already running.")
             return
@@ -104,7 +123,7 @@ class VLMVilaProviderBlurFace:
                 self.stream_ws_client.send_message
             )
 
-        logging.info("VLMVilaProvider started.")
+        logging.info("Vila VLM provider started")
 
     def stop(self) -> None:
         """Stop everything and release resources (including the QueueListener)."""
@@ -122,8 +141,8 @@ class VLMVilaProviderBlurFace:
         # Stop video first to free the camera/GPU quickly.
         try:
             self.video_stream.stop()
-
             self.ws_client.stop()
+            self._log_listener.stop()
         except Exception:
             pass
 
@@ -132,12 +151,6 @@ class VLMVilaProviderBlurFace:
                 self.stream_ws_client.stop()
             except Exception:
                 pass
-
-        # stop the QueueListener so logs flush & file handles close
-        try:
-            self._log_listener.stop()
-        except Exception:
-            pass
 
         logging.info("VLMVilaProvider stopped.")
 
