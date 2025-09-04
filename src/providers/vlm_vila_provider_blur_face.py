@@ -122,10 +122,7 @@ class VLMVilaProviderBlurFace:
         # Stop video first to free the camera/GPU quickly.
         try:
             self.video_stream.stop()
-        except Exception:
-            pass
 
-        try:
             self.ws_client.stop()
         except Exception:
             pass
