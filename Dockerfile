@@ -10,6 +10,14 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
     python3-dev \
+    libasound2 \
+    libasound2-data \
+    libasound2-plugins \
+    libpulse0 \
+    alsa-utils \
+    alsa-topology-conf \
+    alsa-ucm-conf \
+    pulseaudio-utils \
     && rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update && apt-get install -y curl pkg-config libssl-dev
@@ -17,6 +25,14 @@ RUN apt-get update && apt-get install -y curl pkg-config libssl-dev
 RUN python3 -m pip install --upgrade pip
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+RUN mkdir -p /etc/alsa && \
+    ln -snf /usr/share/alsa/alsa.conf.d /etc/alsa/conf.d
+
+RUN printf '%s\n' \
+  'pcm.!default { type pulse }' \
+  'ctl.!default { type pulse }' \
+  > /etc/asound.conf
 
 WORKDIR /app
 RUN git clone --branch releases/0.10.x https://github.com/eclipse-cyclonedds/cyclonedds
@@ -33,7 +49,7 @@ RUN git submodule update --init --recursive
 
 RUN echo '#!/bin/bash' > /entrypoint.sh && \
     echo 'set -e' >> /entrypoint.sh && \
-    echo 'if [ ! -d "/app/OM1/.venv" ]; then' >> /entrypoint.sh && \
+    echo 'if [ ! -f "/app/OM1/.venv/bin/activate" ]; then' >> /entrypoint.sh && \
     echo '  echo ">> Creating virtualenv and installing deps..."' >> /entrypoint.sh && \
     echo '  uv venv /app/OM1/.venv' >> /entrypoint.sh && \
     echo '  uv pip install -r pyproject.toml --extra dds' >> /entrypoint.sh && \

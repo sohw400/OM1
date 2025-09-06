@@ -5,6 +5,9 @@ on:
     paths-ignore:
       - "docs/**"
       - "mintlify/**"
+    tags:
+      - 'v*'
+
   workflow_dispatch:
 
 jobs:
@@ -28,12 +31,12 @@ jobs:
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: openmindagi/om1
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{version}},prefix=v
+            type=semver,pattern={{major}}.{{minor}},prefix=v
             type=ref,event=branch
             type=sha
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
@@ -68,12 +71,12 @@ jobs:
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: openmindagi/om1
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{version}},prefix=v
+            type=semver,pattern={{major}}.{{minor}},prefix=v
             type=ref,event=branch
             type=sha
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
@@ -107,14 +110,16 @@ jobs:
             echo "Error: AMD64 digest is empty"
             exit 1
           fi
-          
+
           if [[ -z "${{ needs.build-arm64.outputs.image-digest }}" ]]; then
             echo "Error: ARM64 digest is empty"
             exit 1
           fi
 
+          # Get the metadata from amd64 build to extract tags
           tags=$(echo '${{ needs.build-amd64.outputs.metadata }}' | jq -r '.tags[]')
 
+          # Create manifest for each tag
           for tag in $tags; do
             echo "Creating manifest for: $tag"
 

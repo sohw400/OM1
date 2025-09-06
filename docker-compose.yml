@@ -18,16 +18,19 @@ services:
       - VIRTUAL_ENV=/app/OM1/.venv
       - PATH=/app/OM1/.venv/bin:$PATH
       - PULSE_SERVER=unix:${XDG_RUNTIME_DIR}/pulse/native
+      - PULSE_COOKIE=/root/.config/pulse/cookie
       - ALSA_CARD=0
     volumes:
+      - ./config:/app/OM1/config
       - ./.venv:/app/OM1/.venv
       - ./cyclonedx:/cyclonedx
       - /dev/snd:/dev/snd:rw
       - ${XDG_RUNTIME_DIR}/pulse:${XDG_RUNTIME_DIR}/pulse:rw
-      - /usr/share/alsa:/usr/share/alsa:ro
-      - /etc/asound.conf:/etc/asound.conf:ro
+      - ~/.config/pulse/cookie:/root/.config/pulse/cookie:ro
     devices:
       - /dev/snd:/dev/snd
+      # OM backpack camera index
+      - /dev/video6:/dev/video6
     logging:
       driver: "json-file"
       options:
@@ -40,4 +43,4 @@ services:
       - apparmor:unconfined
     group_add:
       - audio
-    command: ["spot"]
+    command: ["unitree_go2_autonomy_advance"]
