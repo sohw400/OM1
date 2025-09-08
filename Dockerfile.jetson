@@ -1,20 +1,14 @@
-# syntax=docker/dockerfile:1.6
-
-########## uv binary stage (safer & reproducible) ##########
 FROM --platform=linux/arm64 ghcr.io/astral-sh/uv:latest AS uvbin
 
-########## main image ##########
 FROM nvcr.io/nvidia/l4t-jetpack:r36.4.0
 SHELL ["/bin/bash","-lc"]
 
-# ---- Environment ----
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONNOUSERSITE=1 \
     CUDA_ROOT=/usr/local/cuda
 ENV PATH="${CUDA_ROOT}/bin:${PATH}" \
     LD_LIBRARY_PATH="/usr/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu/tegra:${CUDA_ROOT}/lib64:${LD_LIBRARY_PATH}"
 
-# ---- Base OS deps ----
 RUN apt-get update && apt-get install -y \
     python3.10 python3.10-venv python3.10-dev \
     build-essential cmake pkg-config git curl ca-certificates \
@@ -22,18 +16,15 @@ RUN apt-get update && apt-get install -y \
     libasound2-dev portaudio19-dev libssl-dev vim \
  && rm -rf /var/lib/apt/lists/*
 
-# ---- TensorRT Python from L4T repo ----
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3-tensorrt \
       python3-libnvinfer python3-libnvinfer-dev \
       tensorrt nvidia-tensorrt-dev || true \
  && rm -rf /var/lib/apt/lists/*
 
-# ---- uv binary from stage ----
 COPY --from=uvbin /uv /uvx /usr/local/bin/
 
-# ---- (Optional) CycloneDDS build ----
-# Comment this block out if DDS is not needed.
+
 WORKDIR /app
 RUN git clone --branch releases/0.10.x https://github.com/eclipse-cyclonedds/cyclonedds
 WORKDIR /app/cyclonedds/build
@@ -42,22 +33,14 @@ RUN cmake .. -DCMAKE_INSTALL_PREFIX=../install -DBUILD_EXAMPLES=ON \
 ENV CYCLONEDDS_HOME=/app/cyclonedds/install \
     CMAKE_PREFIX_PATH=/app/cyclonedds/install
 
-# ---- App code ----
 WORKDIR /app/OM1
 COPY . .
-# Only try submodules if this is actually a git worktree and has .gitmodules
-RUN if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && [ -f .gitmodules ]; then \
-      git submodule update --init --recursive; \
-    else \
-      echo "Skipping submodules (no .git/.gitmodules in build context)"; \
-    fi
+RUN git submodule update --init --recursive
 
-# ---- Isolated venv (do NOT expose system site-packages) ----
 RUN python3 -m venv .venv
 ENV VIRTUAL_ENV=/app/OM1/.venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# Link ONLY TensorRT into the venv (match current Python X.Y)
 RUN python3 - <<'PY'
 import os, sys, site
 venv_site = site.getsitepackages()[0]
@@ -76,7 +59,6 @@ if not os.path.exists(dst):
 print("linked", dst, "->", src)
 PY
 
-# ---- PyCUDA build (NumPy first, then compile) ----
 RUN set -euo pipefail; \
     python -m pip install -U pip setuptools wheel packaging \
       "numpy==2.1.0" "mako>=1.3" "pytools>=2024.1" "pybind11>=2.10"; \
@@ -88,16 +70,9 @@ RUN set -euo pipefail; \
     python -m pip uninstall -y pycuda || true; \
     python -m pip install --no-cache-dir --no-binary=:all: --no-build-isolation "pycuda>=2024.1"
 
-# ---- Entry point: default no-sync; optional first-time setup & toggles ----
-# Behavior:
-# - If .venv missing at runtime: print "Creating virtualenv..." and create it, link tensorrt, then sync deps once.
-# - If .venv exists: print "Reusing existing virtualenv...", and only sync when OM1_SYNC=1.
-# - OM1_EXTRAS=dds -> include that extras group in sync.
-# - OM1_UPGRADE_OM1_MODULES=1 -> bump that package (e.g., fetch branch HEAD) before sync.
 RUN <<'BASH'
 set -e
 cat >/entrypoint.sh <<'SH'
-#!/usr/bin/env bash
 set -euo pipefail
 
 cd /app/OM1
@@ -154,10 +129,8 @@ else
   fi
 fi
 
-# Show which python is active
 python -c 'import sys; print("Python:", sys.executable)'
 
-# Run the app (lock-free by default; uv will resolve/install if needed)
 exec uv run --active src/run.py "$@"
 SH
 chmod +x /entrypoint.sh
@@ -175,6 +148,6 @@ BASH
 #     docker run -it --rm --runtime nvidia -e OM1_SYNC=1 -e OM1_UPGRADE_OM1_MODULES=1  om1:jetson-r36.4 bash
 # Usual Usage w/ camera etc..
 # docker run -it --rm   --runtime nvidia   --network host   --shm-size 1g   -v /tmp/argus_socket:/tmp/argus_socket   --device /dev/video0   om1:jetson-r36.4 bash
-# -t: interactive with your terminal --rm: auto remove container on exit --runtime nvidia" enable NVIDIA runtime (GPU/Jetson passthrough) --network host: use host networking 
+# -t: interactive with your terminal --rm: auto remove container on exit --runtime nvidia" enable NVIDIA runtime (GPU/Jetson passthrough) --network host: use host networking
 # --shm-size 1g: enlarge /dev/shm for pytorch/numpy/ROS multiprocess -v /tmp/argus_socket:....: expose Jetson camera argus socket to container
 # --device /dev/video0: pass a V4L2 camera (repeat for more devices).
