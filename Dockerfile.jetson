@@ -10,10 +10,12 @@ ENV PATH="${CUDA_ROOT}/bin:${PATH}" \
     LD_LIBRARY_PATH="/usr/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu/tegra:${CUDA_ROOT}/lib64:${LD_LIBRARY_PATH}"
 
 RUN apt-get update && apt-get install -y \
-    python3.10 python3.10-venv python3.10-dev \
+    git python3.10 python3.10-venv python3.10-dev \
     build-essential cmake pkg-config git curl ca-certificates \
     libv4l-dev v4l-utils ffmpeg libboost-all-dev \
+    libasound2 libasound2-data lib -plugins libpulse0 \
     libasound2-dev portaudio19-dev libssl-dev vim \
+    alsa-topology-conf alsa-ucm-conf pulseaudio-utils \
  && rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
