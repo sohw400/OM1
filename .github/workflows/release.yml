@@ -86,6 +86,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: Dockerfile.jetson
           push: true
           platforms: linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
