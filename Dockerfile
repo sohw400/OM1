@@ -1,34 +1,31 @@
-# ---- UV CLI stage -----------------------------------------------------------
-FROM ghcr.io/astral-sh/uv:latest AS uvbin
+FROM python:3.10-slim
 
-# ---- Base (Jetson L4T/JetPack r36.4.0, Python 3.10) ------------------------
-FROM nvcr.io/nvidia/l4t-jetpack:r36.4.0
-
-SHELL ["/bin/bash","-lc"]
-ENV DEBIAN_FRONTEND=noninteractive \
-    PYTHONNOUSERSITE=1 \
-    CUDA_ROOT=/usr/local/cuda
-    
-ENV PATH="${CUDA_ROOT}/bin:${PATH}" \
-    LD_LIBRARY_PATH="/usr/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu/tegra:${CUDA_ROOT}/lib64:${LD_LIBRARY_PATH}"
-
-# ---- System deps (incl. TRT Python bindings) --------------------------------
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      git ffmpeg \
-      portaudio19-dev libasound2-dev libv4l-dev \
-      libasound2 libasound2-data libasound2-plugins libpulse0 \
-      alsa-utils alsa-topology-conf alsa-ucm-conf pulseaudio-utils \
-      build-essential cmake pkg-config curl ca-certificates vim \
-      python3-dev python3-venv python3-pip \
-      libssl-dev \
-      libnvinfer-bin python3-libnvinfer python3-libnvinfer-dev \
-    && apt-get clean \
+RUN apt-get update && apt-get install -y \
+    git \
+    ffmpeg \
+    portaudio19-dev \
+    libasound2-dev \
+    libv4l-dev \
+    python3-pip \
+    build-essential \
+    cmake \
+    python3-dev \
+    libasound2 \
+    libasound2-data \
+    libasound2-plugins \
+    libpulse0 \
+    alsa-utils \
+    alsa-topology-conf \
+    alsa-ucm-conf \
+    pulseaudio-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# ---- uv CLI -----------------------------------------------------------------
-COPY --from=uvbin /uv /uvx /usr/local/bin/
+RUN apt-get update && apt-get install -y curl pkg-config libssl-dev
 
-# ---- ALSA minimal config ----------------------------------------------------
+RUN python3 -m pip install --upgrade pip
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
 RUN mkdir -p /etc/alsa && \
     ln -snf /usr/share/alsa/alsa.conf.d /etc/alsa/conf.d
 
@@ -37,52 +34,31 @@ RUN printf '%s\n' \
   'ctl.!default { type pulse }' \
   > /etc/asound.conf
 
-# ---- CycloneDDS (examples OFF for smaller image) ----------------------------
 WORKDIR /app
 RUN git clone --branch releases/0.10.x https://github.com/eclipse-cyclonedds/cyclonedds
 WORKDIR /app/cyclonedds/build
-RUN cmake .. -DCMAKE_INSTALL_PREFIX=../install -DBUILD_EXAMPLES=OFF \
+RUN cmake .. -DCMAKE_INSTALL_PREFIX=../install -DBUILD_EXAMPLES=ON \
  && cmake --build . --target install
+
 ENV CYCLONEDDS_HOME=/app/cyclonedds/install \
     CMAKE_PREFIX_PATH=/app/cyclonedds/install
 
-# ---- Project ----------------------------------------------------------------
 WORKDIR /app/OM1
 COPY . .
 RUN git submodule update --init --recursive
 
-# ---- Pre-create venv (see system TRT) ---------------------------------------
-RUN uv venv --system-site-packages /app/OM1/.venv
-ENV VIRTUAL_ENV=/app/OM1/.venv
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-
-# ---- Build PyCUDA into the venv ---------------------------------------------
-# 1) numpy first for headers; 2) set CUDA include/lib; 3) force source build
-RUN python -m pip install -U pip setuptools wheel packaging \
-    "numpy==2.1.0" "pytools>=2024.1" "pybind11>=2.10" && \
-    export NUMPY_INC="$(python -c 'import numpy,sys;sys.stdout.write(numpy.get_include())')" && \
-    export CFLAGS="${CFLAGS:-} -I${CUDA_ROOT}/include -I${NUMPY_INC}" && \
-    export CXXFLAGS="${CXXFLAGS:-} -I${CUDA_ROOT}/include" && \
-    export LDFLAGS="${LDFLAGS:-} -L${CUDA_ROOT}/lib64" && \
-    python -m pip uninstall -y pycuda || true && \
-    python -m pip install --no-cache-dir --no-binary=:all: --no-build-isolation "pycuda>=2024.1"
-
-# ---- Your (kept) entrypoint logic, minimal tweaks ---------------------------
-# - create venv only if missing (we already created it above, so this will "reuse")
-# - use --system-site-packages so tensorrt is visible if it ever re-creates
-# - use uv sync for pyproject; extras=dds as you wanted
 RUN echo '#!/bin/bash' > /entrypoint.sh && \
     echo 'set -e' >> /entrypoint.sh && \
     echo 'if [ ! -f "/app/OM1/.venv/bin/activate" ]; then' >> /entrypoint.sh && \
     echo '  echo ">> Creating virtualenv and installing deps..."' >> /entrypoint.sh && \
-    echo '  uv venv --system-site-packages /app/OM1/.venv' >> /entrypoint.sh && \
-    echo '  uv sync --active --extra dds' >> /entrypoint.sh && \
+    echo '  uv venv /app/OM1/.venv' >> /entrypoint.sh && \
+    echo '  uv pip install -r pyproject.toml --extra dds' >> /entrypoint.sh && \
     echo 'else' >> /entrypoint.sh && \
     echo '  echo ">> Reusing existing virtualenv at /app/OM1/.venv"' >> /entrypoint.sh && \
-    echo '  uv sync --active --extra dds' >> /entrypoint.sh && \
+    echo '   uv pip install -r pyproject.toml --extra dds' >> /entrypoint.sh && \
     echo 'fi' >> /entrypoint.sh && \
-    echo 'exec uv run --active src/run.py "$@"' >> /entrypoint.sh && \
+    echo 'exec uv run src/run.py "$@"' >> /entrypoint.sh && \
     chmod +x /entrypoint.sh
 
-# ENTRYPOINT ["/entrypoint.sh"]
-# CMD ["spot"]
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["spot"]
