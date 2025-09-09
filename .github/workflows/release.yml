@@ -11,6 +11,47 @@ on:
   workflow_dispatch:
 
 jobs:
+  build-arm64-jetson:
+    runs-on: ubuntu-22.04-arm
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      metadata: ${{ steps.meta_jetson.outputs.json }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker (JETSON)
+        id: meta_jetson
+        uses: docker/metadata-action@v5
+        with:
+          images: openmindagi/om1
+          tags: |
+            type=semver,pattern={{version}},prefix=v,suffix=-jetson
+            type=semver,pattern={{major}}.{{minor}},prefix=v,suffix=-jetson
+            type=ref,event=branch,suffix=-jetson
+            type=sha,suffix=-jetson
+            type=raw,value=jetson-latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push ARM64 Jetson image by tag
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.jetson
+          push: true
+          platforms: linux/arm64
+          tags: ${{ steps.meta_jetson.outputs.tags }}
+          labels: ${{ steps.meta_jetson.outputs.labels }}
+
   build-amd64:
     runs-on: ubuntu-latest
     outputs:
@@ -86,7 +127,6 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile.jetson
           push: true
           platforms: linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
