@@ -39,3 +39,5 @@ logs/
 
 # Temporary files
 saved_locations.json
+*.jpg
+/zenohdb
