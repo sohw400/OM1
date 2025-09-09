@@ -21,10 +21,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      python3-tensorrt \
+      python3-tensorrt libnvinfer-bin\
       python3-libnvinfer python3-libnvinfer-dev \
       tensorrt nvidia-tensorrt-dev || true \
  && rm -rf /var/lib/apt/lists/*
+
+ENV TRT_BIN=/usr/src/tensorrt/bin
+ENV PATH="${TRT_BIN}:${PATH}"
 
 COPY --from=uvbin /uv /uvx /usr/local/bin/
 
