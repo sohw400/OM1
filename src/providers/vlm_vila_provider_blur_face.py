@@ -1,4 +1,3 @@
-# om1_vlm/vila_vlm/vlm_vila_provider.py
 import logging
 from pathlib import Path
 from typing import Callable, Optional
@@ -6,10 +5,7 @@ from typing import Callable, Optional
 from om1_utils import ws
 from om1_vlm import VideoStreamBlurFace
 
-# import your local logging helpers (same folder as this file)
-from .logging_info import (
-    setup_logging_mp_main,  # main-process: create handlers + QueueListener
-)
+from .logging_info import setup_logging_mp_main
 from .singleton import singleton
 
 
@@ -26,7 +22,13 @@ class VLMVilaProviderBlurFace:
       • Passes log_queue to VideoStreamBlurFace so child processes forward logs here.
     """
 
-    def __init__(self, ws_url: str, fps: int = 30, stream_url: Optional[str] = None):
+    def __init__(
+        self,
+        ws_url: str,
+        fps: int = 30,
+        stream_url: Optional[str] = None,
+        camera_index: int = 0,
+    ):
         """
         Parameters
         ----------
@@ -36,6 +38,8 @@ class VLMVilaProviderBlurFace:
             Target camera FPS, by default 30.
         stream_url : Optional[str], optional
             Optional second WebSocket endpoint to also mirror frames to, by default None.
+        camera_index : int, optional
+            Camera index to use (default is 0).
         """
         self.running: bool = False
 
@@ -67,6 +71,7 @@ class VLMVilaProviderBlurFace:
             scrfd_engine=engine_path,
             scrfd_input="input.1",
             scrfd_size=640,
+            device_index=camera_index,
             # pass the queue so *child* processes route logs to this process
             log_queue=self._log_queue,
         )
