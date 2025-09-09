@@ -1,6 +1,7 @@
 FROM --platform=$TARGETPLATFORM ghcr.io/astral-sh/uv:latest AS uvbin
 
 FROM nvcr.io/nvidia/l4t-jetpack:r36.4.0
+
 SHELL ["/bin/bash","-lc"]
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -27,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/*
 
 ENV TRT_BIN=/usr/src/tensorrt/bin
-ENV PATH="${TRT_BIN}:${PATH}"
+ENV PATH="${TRT_BIN}:${PATH}" 
 
 COPY --from=uvbin /uv /uvx /usr/local/bin/
 
