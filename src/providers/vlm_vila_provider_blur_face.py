@@ -5,7 +5,6 @@ from typing import Callable, Optional
 from om1_utils import ws
 from om1_vlm import VideoStreamBlurFace
 
-from .logging_info import setup_logging_mp_main
 from .singleton import singleton
 
 
@@ -43,14 +42,6 @@ class VLMVilaProviderBlurFace:
         """
         self.running: bool = False
 
-        # Main-process logging setup (console by default; file optional)
-        self._log_listener, self._log_queue = setup_logging_mp_main(
-            config_name="vila_vlm",
-            log_level="INFO",
-            log_to_file=False,  # set True if you want a logs/… file written too
-            logging_config=None,  # or pass LoggingConfig("DEBUG", True)
-        )
-
         # WebSocket(s)
         self.ws_client: ws.Client = ws.Client(url=ws_url)
         self.stream_ws_client: Optional[ws.Client] = (
@@ -72,8 +63,6 @@ class VLMVilaProviderBlurFace:
             scrfd_input="input.1",
             scrfd_size=640,
             device_index=camera_index,
-            # pass the queue so *child* processes route logs to this process
-            log_queue=self._log_queue,
         )
 
     # ---------- public API ----------
