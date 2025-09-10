@@ -34,6 +34,9 @@ launch.sh
 # Logs
 logs/
 
+# Data files
 *.jsonl
 system_hw_test/yolo_log.json
 *.jpg
+*.jpg
+/zenohdb

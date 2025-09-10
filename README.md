@@ -21,12 +21,12 @@ To get started with OM1, let's run the Spot agent. Spot uses your webcam to capt
 
 ### Package Management and VENV
 
-You will need the [`uv` package manager](https://docs.astral.sh/uv/getting-started/installation/)
+You will need the [`uv` package manager](https://docs.astral.sh/uv/getting-started/installation/).
 
 ### Clone the Repo
 
 ```bash
-git clone https://github.com/OpenmindAGI/OM1.git
+git clone https://github.com/openmind/OM1.git
 cd OM1
 git submodule update --init
 uv venv
@@ -34,27 +34,24 @@ uv venv
 
 ### Install Dependencies
 
-For macOS  
+For MacOS  
 ```bash
-brew install portaudio
-brew install ffmpeg
+brew install portaudio ffmpeg
 ```
 
 For Linux  
 ```bash
 sudo apt-get update
-sudo apt-get install portaudio19-dev python-all-dev
-sudo apt-get install ffmpeg
+sudo apt-get install portaudio19-dev python-dev ffmpeg
 ```
 
 ### Obtain an OpenMind API Key
 
-Obtain your OpenMind API Key [here]](https://portal.openmind.org/). Copy it to `config/spot.json5`, replacing the `openmind_free` placeholder with your API key. Or, `cp env.example .env` and add your key to the `.env`. 
+Obtain your API Key at [OpenMind Portal](https://portal.openmind.org/). Copy it to `config/spot.json5`, replacing the `openmind_free` placeholder. Or, `cp env.example .env` and add your key to the `.env`. 
 
 ### Launching OM1
 
 Run
-
 ```bash
 uv run src/run.py spot
 ```
@@ -89,8 +86,8 @@ OM1 can interface with your HAL via USB, serial, ROS2, CycloneDDS, Zenoh, or web
 OM1 is developed on:
 
 * Jetson AGX Orin 64GB (running Ubuntu 22.04 and JetPack 6.1)
-* Mac Studio with Apple M2 Ultra with 48 GB unified memory (running macOS Sequoia)
-* Mac Mini with Apple M4 Pro with 48 GB unified memory (running macOS Sequoia)
+* Mac Studio with Apple M2 Ultra with 48 GB unified memory (running MacOS Sequoia)
+* Mac Mini with Apple M4 Pro with 48 GB unified memory (running MacOS Sequoia)
 * Generic Linux machines (running Ubuntu 22.04)
 
 OM1 _should_ run on other platforms (such as Windows) and microcontrollers such as the Raspberry Pi 5 16GB.

@@ -86,12 +86,27 @@ def load_config(config_name: str) -> RuntimeConfig:
     with open(config_path, "r+") as f:
         raw_config = json5.load(f)
 
+    g_robot_ip = raw_config.get("robot_ip", None)
+    if g_robot_ip is None or g_robot_ip == "" or g_robot_ip == "192.168.0.241":
+        logging.warning(
+            "No robot ip found in the configuration file. Checking for backup robot ip in your .env file."
+        )
+        backup_key = os.environ.get("ROBOT_IP")
+        g_robot_ip = backup_key
+        if backup_key:
+            raw_config["robot_ip"] = backup_key
+            logging.info("Success - Found ROBOT_IP in your .env file.")
+        else:
+            logging.warning(
+                "Could not find robot ip address. Please find your robot IP address and add it to the configuration file or .env file."
+            )
     g_api_key = raw_config.get("api_key", None)
     if g_api_key is None or g_api_key == "" or g_api_key == "openmind_free":
         logging.warning(
             "No API key found in the configuration file. Checking for backup OM_API_KEY in your .env file."
         )
         backup_key = os.environ.get("OM_API_KEY")
+        g_api_key = backup_key
         if backup_key:
             raw_config["api_key"] = backup_key
             logging.info("Success - Found OM_API_KEY in your .env file.")
@@ -140,7 +155,9 @@ def load_config(config_name: str) -> RuntimeConfig:
         "backgrounds": [
             load_background(bg["type"])(
                 config=BackgroundConfig(
-                    **add_meta(bg.get("config", {}), g_api_key, g_ut_eth, g_URID)
+                    **add_meta(
+                        bg.get("config", {}), g_api_key, g_ut_eth, g_URID, g_robot_ip
+                    )
                 )
             )
             for bg in raw_config.get("backgrounds", [])
@@ -148,7 +165,9 @@ def load_config(config_name: str) -> RuntimeConfig:
         "agent_inputs": [
             load_input(input["type"])(
                 config=SensorConfig(
-                    **add_meta(input.get("config", {}), g_api_key, g_ut_eth, g_URID)
+                    **add_meta(
+                        input.get("config", {}), g_api_key, g_ut_eth, g_URID, g_robot_ip
+                    )
                 )
             )
             for input in raw_config.get("agent_inputs", [])
@@ -160,6 +179,7 @@ def load_config(config_name: str) -> RuntimeConfig:
                     g_api_key,
                     g_ut_eth,
                     g_URID,
+                    g_robot_ip,
                 )
             ),
             output_model=CortexOutputModel,
@@ -169,7 +189,11 @@ def load_config(config_name: str) -> RuntimeConfig:
                 config=SimulatorConfig(
                     name=simulator["type"],
                     **add_meta(
-                        simulator.get("config", {}), g_api_key, g_ut_eth, g_URID
+                        simulator.get("config", {}),
+                        g_api_key,
+                        g_ut_eth,
+                        g_URID,
+                        g_robot_ip,
                     ),
                 )
             )
@@ -180,7 +204,11 @@ def load_config(config_name: str) -> RuntimeConfig:
                 {
                     **action,
                     "config": add_meta(
-                        action.get("config", {}), g_api_key, g_ut_eth, g_URID
+                        action.get("config", {}),
+                        g_api_key,
+                        g_ut_eth,
+                        g_URID,
+                        g_robot_ip,
                     ),
                 }
             )
@@ -207,6 +235,7 @@ def add_meta(
     g_api_key: Optional[str],
     g_ut_eth: Optional[str],
     g_URID: Optional[str],
+    g_robot_ip: Optional[str],
 ) -> dict:
     """
     Add an API key and Robot configuration to a runtime configuration.
@@ -235,6 +264,8 @@ def add_meta(
         config["unitree_ethernet"] = g_ut_eth
     if "URID" not in config and g_URID is not None:
         config["URID"] = g_URID
+    if "robot_ip" not in config and g_robot_ip is not None:
+        config["robot_ip"] = g_robot_ip
     # logging.info(f"config after {config}")
     return config
 
@@ -244,11 +275,12 @@ def build_runtime_config_from_test_case(config: dict) -> RuntimeConfig:
     api_key = config.get("api_key")
     g_ut_eth = config.get("unitree_ethernet")
     g_URID = config.get("URID")
+    g_robot_ip = config.get("robot_ip")
 
     backgrounds = [
         load_background(bg["type"])(
             config=BackgroundConfig(
-                **add_meta(bg.get("config", {}), api_key, g_ut_eth, g_URID)
+                **add_meta(bg.get("config", {}), api_key, g_ut_eth, g_URID, g_robot_ip)
             )
         )
         for bg in config.get("backgrounds", [])
@@ -256,7 +288,7 @@ def build_runtime_config_from_test_case(config: dict) -> RuntimeConfig:
     agent_inputs = [
         load_input(inp["type"])(
             config=SensorConfig(
-                **add_meta(inp.get("config", {}), api_key, g_ut_eth, g_URID)
+                **add_meta(inp.get("config", {}), api_key, g_ut_eth, g_URID, g_robot_ip)
             )
         )
         for inp in config.get("agent_inputs", [])
@@ -264,7 +296,11 @@ def build_runtime_config_from_test_case(config: dict) -> RuntimeConfig:
     cortex_llm = load_llm(config["cortex_llm"]["type"])(
         config=LLMConfig(
             **add_meta(
-                config["cortex_llm"].get("config", {}), api_key, g_ut_eth, g_URID
+                config["cortex_llm"].get("config", {}),
+                api_key,
+                g_ut_eth,
+                g_URID,
+                g_robot_ip,
             )
         ),
         output_model=CortexOutputModel,
@@ -273,7 +309,9 @@ def build_runtime_config_from_test_case(config: dict) -> RuntimeConfig:
         load_simulator(sim["type"])(
             config=SimulatorConfig(
                 name=sim["type"],
-                **add_meta(sim.get("config", {}), api_key, g_ut_eth, g_URID),
+                **add_meta(
+                    sim.get("config", {}), api_key, g_ut_eth, g_URID, g_robot_ip
+                ),
             )
         )
         for sim in config.get("simulators", [])
@@ -282,7 +320,9 @@ def build_runtime_config_from_test_case(config: dict) -> RuntimeConfig:
         load_action(
             {
                 **action,
-                "config": add_meta(action.get("config", {}), api_key, g_ut_eth, g_URID),
+                "config": add_meta(
+                    action.get("config", {}), api_key, g_ut_eth, g_URID, g_robot_ip
+                ),
             }
         )
         for action in config.get("agent_actions", [])
