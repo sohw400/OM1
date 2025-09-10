@@ -1,10 +1,10 @@
-# version: '3.8'
+version: '3.8'
 
 services:
   om1:
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile.jetson
+    build:
+      context: .
+      dockerfile: Dockerfile.jetson
     image: openmindagi/om1:jetson
     platform: linux/arm64
     container_name: om1
@@ -47,9 +47,3 @@ services:
     group_add:
       - audio
     command: ["unitree_go2_autonomy_advance"]
-
-
-### USAGE:
-# docker compose -f docker-compose-jetson.yml stop om1
-# docker compose -f docker-compose-jetson.yml pull
-# docker compose -f docker-compose-jetson.yml run --rm -it --entrypoint bash om1
