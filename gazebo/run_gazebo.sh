@@ -35,17 +35,44 @@ cleanup() {
 # Check if gz is installed
 if ! command -v gz &> /dev/null; then
     echo "Error: Gazebo Harmonic (gz) is not installed."
-    
     if [[ "$PLATFORM" == "macos" ]]; then
         echo "To install on macOS, run:"
         echo "  brew tap osrf/simulation"
         echo "  brew install gz-harmonic"
+        echo ""
+        read -p "Would you like to install Gazebo Harmonic now? (y/n): " REPLY
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            echo "Installing Gazebo Harmonic..."
+            brew tap osrf/simulation
+            brew install gz-harmonic
+            echo "Installation complete!"
+        else
+            echo "Installation cancelled."
+            exit 1
+        fi
     else
-        echo "To install on Ubuntu, run:"
-        echo "  sudo apt-get update && sudo apt-get install gz-harmonic"
-        echo "For installation guide: https://gazebosim.org/docs/harmonic/install_ubuntu"
+        echo "Gazebo Harmonic is not installed on Ubuntu."
+        echo ""
+        read -p "Would you like to install Gazebo Harmonic now? (y/n): " REPLY
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            echo "Installing dependencies..."
+            sudo apt-get update && sudo apt-get install -y curl lsb-release gnupg
+            
+            echo "Adding Gazebo repository..."
+            sudo curl https://packages.osrfoundation.org/gazebo.gpg --output /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] https://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+            
+            echo "Installing Gazebo Harmonic..."
+            sudo apt-get update && sudo apt-get install -y gz-harmonic
+            
+            echo "Installation complete!"
+        else
+            echo "Installation cancelled."
+            echo ""
+            echo "For installation guide: https://gazebosim.org/docs/harmonic/install_ubuntu"
+            exit 1
+        fi
     fi
-    exit 1
 fi
 
 # Set resource path
