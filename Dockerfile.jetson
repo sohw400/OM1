@@ -36,6 +36,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libnvinfer-bin \
       python3-libnvinfer \
       python3-libnvinfer-dev \
+      libturbojpeg \
+      libjpeg-turbo8-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
