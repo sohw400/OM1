@@ -15,10 +15,6 @@ class VLMVilaProviderBlurFace:
       • a WebSocket client for VLM messages,
       • an optional second WebSocket client for mirroring raw frames,
       • a VideoStreamBlurFace pipeline (camera → optional face blur → base64 JPEG callbacks).
-
-    Logging:
-      • Initializes a QueueListener in the main process (console/file handlers).
-      • Passes log_queue to VideoStreamBlurFace so child processes forward logs here.
     """
 
     def __init__(
