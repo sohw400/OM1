@@ -1,9 +1,7 @@
 import logging
-import multiprocessing as mp
 import os
 import time
 from dataclasses import dataclass
-from logging.handlers import QueueHandler, QueueListener
 
 
 @dataclass
