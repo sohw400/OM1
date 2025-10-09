@@ -10,10 +10,10 @@ Make sure you have the following before installation:
 - Device: 945-14070-0080-000 | Jetson AGX Thor Developer Kit
 - USB Memory Stick 
 
-Then, install the latest JetPack for Jetson AGX Thor [following this guide]
+Install the latest Dev Kit base image [following this guide]
 (https://docs.nvidia.com/jetson/agx-thor-devkit/user-guide/latest/quick_start.html). 
 
-Helpful hint: If you are on a mac, you can quickly wipe the USB drive, if needed, for use with Balena Etcher:
+Helpful hint: If you are on a mac, you can quickly wipe the USB drive for use with Balena Etcher with these commands:
 
 ```bash
 diskutil list
@@ -21,9 +21,7 @@ diskutil unmountDisk /dev/disk2
 diskutil eraseDisk FAT32 SANDISK /dev/disk2
 ```
 
-We typically use the `Monitor-attached` flow. We have successfully used `jetsoninstaller-0.2.0-r38.2-2025-08-22-01-33-29-arm64.iso`. Sometimes the installation hangs right after `freeing initrd memory` at t = 4s, but just restart the Thor and try again; it should work eventually. 
-
-You will be left with the Thor running Ubuntu 24.04.3 LTS. 
+We typically use the `Monitor-attached` flow. We have successfully used `jetsoninstaller-0.2.0-r38.2-2025-08-22-01-33-29-arm64.iso`. Sometimes the installation hangs right after `freeing initrd memory` at t = 4s, but just restart the Thor and try again; it should work eventually. You will be left with the Thor running Ubuntu 24.04.3 LTS. 
 
 ## JetPack SDK
 
@@ -35,13 +33,13 @@ Once you have installed Ubuntu, [install JetPack](https://docs.nvidia.com/jetson
 sudo apt install chromium-browser
 ```
 
-## System info
+## System Info
 
 * **GPU**: You can get GPU stats and other basic information via the built in command `nvidia-smi`. The command should show CUDA version 13. 
 
 * **tegastats**: The `tegrastats` command (via the top right corner Nvidia dropdown) gives you information about system temperatures, frequencies, and power consumption in a terminal. 
 
-* **Jetson Power GUI** gives you a visual overview of CPUm GPU, Thermal, Power, and fans.  
+* **Jetson Power GUI** gives you a visual overview of CPU, GPU, Thermal, Power, and fans.  
 
 ## OM1
 
