@@ -68,7 +68,7 @@ You can run the usual Ubuntu software updater without hosing the install.
 
 Then, install OM1 on the Nvidia Thor from its command line, following the [standard instructions](../developing/1_get-started.mdx).
 
-## Realsense DepthVCamera
+## RealSense Depth Camera
 
 * Install `cmake`: 
 
@@ -77,23 +77,25 @@ sudo apt install cmake
 ```
 
 Download the `development` branch of [librealsense](https://github.com/IntelRealSense/librealsense/tree/development).
-Follow [Building from Source using Native Backend"](https://github.com/IntelRealSense/librealsense/blob/development/doc/installation_jetson.md#building-from-source-using-native-backend)
+Follow [Building from Source using Native Backend](https://github.com/IntelRealSense/librealsense/blob/development/doc/installation_jetson.md#building-from-source-using-native-backend).
 
-* Patch `./scripts/patch-realsense-ubuntu-L4T.sh`:
+* Patch `./scripts/patch-realsense-ubuntu-L4T.sh`
+
+Add `38.2.2` to the list of supported versions:
 
 ```bash
-Line 100 "38.2") -> "38.2" | "38.2.2"
+Line 100 "38.2") -> "38.2" | "38.2.2")
 ```  
 
-* Make sure your local CUDA is working, test with the [Nvidia examples](https://github.com/NVIDIA/cuda-samples):
+* Make sure your local CUDA is working; test with the [Nvidia examples](https://github.com/NVIDIA/cuda-samples):
 
-```basu
+```bash
 python3 run_tests.py --output ./test --dir ./build/Samples --config test_args.json
 ```
 
-* Add the following to your bashrc:
+* Add needed env vars to your `.bashrc`:
 
-```
+```bash
 echo "export PATH=/usr/local/cuda/bin:$PATH" >> ~/.bashrc
 echo "export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH" >> ~/.bashrc
 echo "export CUDACXX=/usr/local/cuda-13.0/bin/nvcc" >> ~/.bashrc
@@ -106,13 +108,17 @@ source ~/.bashrc
 sudo apt-get install libglu1-mesa-dev
 ```
 
-* Fix the `cmake` command relative to "building-from-source-using-native-backend" 
+* Change the `cmake` command relative to "building-from-source-using-native-backend" 
 
-`-DCMAKE_CUDA_ARCHITECTURES=native` seems to be needed? So the resulting command is:
+Specifically, `-DCMAKE_CUDA_ARCHITECTURES=native` seems to be needed. The resulting command is:
 
 ```bash
 cmake .. -DBUILD_EXAMPLES=true -DCMAKE_BUILD_TYPE=release -DFORCE_RSUSB_BACKEND=false -DCMAKE_CUDA_ARCHITECTURES=native -DBUILD_WITH_CUDA=true && make -j$(($(nproc)-1)) && sudo make install
 ```
+
+Finally, plug in your RealSense. When you now run `realsense-viewer`, it _should_ just work. 
+
+**Warning** The RealSense camera requires the full bandwidth of an entire USB 3.2 hub. This means that on the Thor, depending on where you plug in the RealSense, the adjacent USB port will stop working (practically speaking). So e.g. you cannot use one USB 3.2 A port for your mouse, and the other for the DepthSense. We suggest adding a hub to one of the USB Type-C ports, and then using that hub for your mouse, keyboard, microphones, speakers, and other cameras, etc, and then the RealSense can use/block both USB 3.2 Type A ports.  
 
 ## Robot Deployments
 
