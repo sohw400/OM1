@@ -68,6 +68,52 @@ You can run the usual Ubuntu software updater without hosing the install.
 
 Then, install OM1 on the Nvidia Thor from its command line, following the [standard instructions](../developing/1_get-started.mdx).
 
+## Realsense DepthVCamera
+
+* Install `cmake`: 
+
+```bash
+sudo apt install cmake
+```
+
+Download the `development` branch of [librealsense](https://github.com/IntelRealSense/librealsense/tree/development).
+Follow [Building from Source using Native Backend"](https://github.com/IntelRealSense/librealsense/blob/development/doc/installation_jetson.md#building-from-source-using-native-backend)
+
+* Patch `./scripts/patch-realsense-ubuntu-L4T.sh`:
+
+```bash
+Line 100 "38.2") -> "38.2" | "38.2.2"
+```  
+
+* Make sure your local CUDA is working, test with the [Nvidia examples](https://github.com/NVIDIA/cuda-samples):
+
+```basu
+python3 run_tests.py --output ./test --dir ./build/Samples --config test_args.json
+```
+
+* Add the following to your bashrc:
+
+```
+echo "export PATH=/usr/local/cuda/bin:$PATH" >> ~/.bashrc
+echo "export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH" >> ~/.bashrc
+echo "export CUDACXX=/usr/local/cuda-13.0/bin/nvcc" >> ~/.bashrc
+source ~/.bashrc
+```
+
+* Install OpenGL Utility Library (GLU)
+
+```bash
+sudo apt-get install libglu1-mesa-dev
+```
+
+* Fix the `cmake` command relative to "building-from-source-using-native-backend" 
+
+`-DCMAKE_CUDA_ARCHITECTURES=native` seems to be needed? So the resulting command is:
+
+```bash
+cmake .. -DBUILD_EXAMPLES=true -DCMAKE_BUILD_TYPE=release -DFORCE_RSUSB_BACKEND=false -DCMAKE_CUDA_ARCHITECTURES=native -DBUILD_WITH_CUDA=true && make -j$(($(nproc)-1)) && sudo make install
+```
+
 ## Robot Deployments
 
 For robot deployments, we recommend modules such as the [Auvidea Jetson T5000 module](https://auvidea.eu/press-release-nvidia-jetson-thor-t5000-launch/) since it directly accepts 24V to 48V, unlike the dev kit's more restricted 9–28V DC Micro-fit power connector.
