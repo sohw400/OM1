@@ -10,7 +10,7 @@ from actions.base import ActionConfig, ActionConnector
 from actions.remember_location.interface import RememberLocationInput
 
 
-class HTTPAPIRememberLocationConnector(ActionConnector[RememberLocationInput]):
+class RememberLocationConnector(ActionConnector[RememberLocationInput]):
     """
     Connector that persists a remembered location by POSTing to an HTTP API.
 
