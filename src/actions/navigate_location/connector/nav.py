@@ -109,7 +109,3 @@ class NavConnector(ActionConnector[NavigateLocationInput]):
             self.io.add_input(
                 "NavigationResult", f"Error initiating navigation: {e}", None
             )
-
-    def tick(self) -> None:
-        # no periodic work
-        return

@@ -58,7 +58,3 @@ class RememberLocationConnector(ActionConnector[RememberLocationInput]):
             logging.error("RememberLocation API request timed out")
         except Exception as e:
             logging.error(f"RememberLocation API request failed: {e}")
-
-    def tick(self) -> None:
-        # connector is stateless for this simple implementation
-        return
