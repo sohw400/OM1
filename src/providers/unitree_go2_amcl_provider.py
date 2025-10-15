@@ -4,11 +4,7 @@ from typing import Optional
 import numpy as np
 import zenoh
 
-from zenoh_msgs import (
-    Pose,
-    nav_msgs,
-    open_zenoh_session,
-)
+from zenoh_msgs import Pose, nav_msgs, open_zenoh_session
 
 from .singleton import singleton
 from .zenoh_listener_provider import ZenohListenerProvider
