@@ -98,8 +98,12 @@ class UnitreeGo2NavigationProvider:
         self.ai_status_pub = None
         if self.session:
             try:
-                self.ai_status_pub = self.session.declare_publisher(self.ai_status_topic)
-                logging.info("AI status publisher initialized on topic: %s", self.ai_status_topic)
+                self.ai_status_pub = self.session.declare_publisher(
+                    self.ai_status_topic
+                )
+                logging.info(
+                    "AI status publisher initialized on topic: %s", self.ai_status_topic
+                )
             except Exception as e:
                 logging.error(f"Error creating AI status publisher: {e}")
 
@@ -121,27 +125,39 @@ class UnitreeGo2NavigationProvider:
                 latest_status = status_list[-1]  # type: ignore
                 status_code = latest_status.status
                 self.navigation_status = status_map.get(status_code, "UNKNOWN")
-                logging.info("Received navigation status from ROS2 topic '/navigate_to_pose/_action/status': %s (code=%d)", 
-                           self.navigation_status, status_code)
-                
+                logging.info(
+                    "Received navigation status from ROS2 topic '/navigate_to_pose/_action/status': %s (code=%d)",
+                    self.navigation_status,
+                    status_code,
+                )
+
                 # Track navigation state and AI mode control
                 # AI mode is ONLY re-enabled on STATUS_SUCCEEDED (4)
                 if status_code in (1, 2):  # ACCEPTED or EXECUTING
                     if not self._nav_in_progress:
                         self._nav_in_progress = True
-                        self._publish_ai_status(enabled=False)  # Disable AI during navigation
+                        self._publish_ai_status(
+                            enabled=False
+                        )  # Disable AI during navigation
                         logging.info("Navigation started - AI mode disabled")
-                elif status_code == 4:  # STATUS_SUCCEEDED - Navigation completed successfully
+                elif (
+                    status_code == 4
+                ):  # STATUS_SUCCEEDED - Navigation completed successfully
                     if self._nav_in_progress:
                         self._nav_in_progress = False
-                        self._publish_ai_status(enabled=True)  # Re-enable AI ONLY on success
+                        self._publish_ai_status(
+                            enabled=True
+                        )  # Re-enable AI ONLY on success
                         logging.info("Navigation succeeded - AI mode re-enabled")
                 elif status_code in (5, 6):  # CANCELED or ABORTED
                     if self._nav_in_progress:
                         self._nav_in_progress = False
                         # Do NOT re-enable AI mode on failure/cancellation
-                        logging.warning("Navigation %s (code=%d) - AI mode remains disabled", 
-                                      self.navigation_status, status_code)
+                        logging.warning(
+                            "Navigation %s (code=%d) - AI mode remains disabled",
+                            self.navigation_status,
+                            status_code,
+                        )
         else:
             logging.warning("Received empty navigation status message")
 
@@ -165,7 +181,9 @@ class UnitreeGo2NavigationProvider:
                 code=1 if enabled else 0,
             )
             self.ai_status_pub.put(status_msg.serialize())
-            logging.info("AI mode %s during navigation", "enabled" if enabled else "disabled")
+            logging.info(
+                "AI mode %s during navigation", "enabled" if enabled else "disabled"
+            )
         except Exception as e:
             logging.error(f"Error publishing AI status: {e}")
 
@@ -205,12 +223,12 @@ class UnitreeGo2NavigationProvider:
         if self.session is None:
             logging.error("Cannot publish goal pose; Zenoh session is not available.")
             return
-        
+
         # Disable AI mode immediately when navigation goal is published
         if not self._nav_in_progress:
             self._publish_ai_status(enabled=False)
             logging.info("Navigation goal published - AI mode disabled immediately")
-        
+
         self._nav_in_progress = True
         payload = ZBytes(pose.serialize())
         self.session.put(self.goal_pose_topic, payload)
@@ -224,7 +242,7 @@ class UnitreeGo2NavigationProvider:
         if self.session is None:
             logging.error("Cannot cancel goal; Zenoh session is not available.")
             return
-            
+
         try:
             # Send cancel request to Nav2
             # Empty payload should cancel all active goals

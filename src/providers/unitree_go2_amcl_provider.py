@@ -1,18 +1,13 @@
 import logging
-import time
 from typing import Optional
-from uuid import uuid4
 
 import numpy as np
 import zenoh
 
 from zenoh_msgs import (
-    AIStatusRequest,
     Pose,
-    String,
     nav_msgs,
     open_zenoh_session,
-    prepare_header,
 )
 
 from .singleton import singleton

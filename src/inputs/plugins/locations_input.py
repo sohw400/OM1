@@ -18,7 +18,7 @@ class Message:
 class LocationsInput(FuserInput[str]):
     """
     Input plugin that publishes available saved locations for LLM prompts.
-    
+
     Reads locations from IOProvider (populated by Locations background task).
     """
 
@@ -31,15 +31,17 @@ class LocationsInput(FuserInput[str]):
     async def _poll(self) -> Optional[str]:
         """Poll IOProvider for locations data."""
         await asyncio.sleep(0.5)
-        
+
         # Get locations from IOProvider (populated by background task)
         locs = self.io_provider.get_dynamic_variable("available_locations")
         logging.debug(f"LocationsInput._poll: got locations from IOProvider: {locs}")
-        
+
         if not locs or not isinstance(locs, dict):
-            logging.debug(f"LocationsInput._poll: no locations available (type: {type(locs)})")
+            logging.debug(
+                f"LocationsInput._poll: no locations available (type: {type(locs)})"
+            )
             return None
-        
+
         # Build a string for LLM
         lines = []
         for name, entry in locs.items():
@@ -50,7 +52,7 @@ class LocationsInput(FuserInput[str]):
                 lines.append(f"{label} (x:{pos.get('x',0):.2f} y:{pos.get('y',0):.2f})")
             else:
                 lines.append(f"{label}")
-        
+
         result = "\n".join(lines)
         logging.info(f"LocationsInput: formatted {len(lines)} locations")
         return result
@@ -74,9 +76,7 @@ class LocationsInput(FuserInput[str]):
             f"{latest_message.message}\n// END\n"
         )
         self.io_provider.add_input(
-            self.__class__.__name__, 
-            latest_message.message, 
-            latest_message.timestamp
+            self.__class__.__name__, latest_message.message, latest_message.timestamp
         )
         self.messages = []
         return result

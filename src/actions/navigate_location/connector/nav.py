@@ -1,16 +1,12 @@
 import asyncio
-import json
 import logging
-from typing import Any, Optional
-
-import aiohttp
+from typing import Optional
 
 from actions.base import ActionConfig, ActionConnector
 from actions.navigate_location.interface import NavigateLocationInput
-from providers.unitree_go2_navigation_provider import UnitreeGo2NavigationProvider
-from providers.locations_provider import LocationsProvider
 from providers.io_provider import IOProvider
-from zenoh_msgs import geometry_msgs
+from providers.locations_provider import LocationsProvider
+from providers.unitree_go2_navigation_provider import UnitreeGo2NavigationProvider
 from zenoh_msgs import Header, Point, Pose, PoseStamped, Quaternion, Time
 
 
@@ -29,20 +25,34 @@ class NavConnector(ActionConnector[NavigateLocationInput]):
         self.timeout: int = getattr(config, "timeout", 5)
         self.provider = UnitreeGo2NavigationProvider()
         # provider that manages remote location lists
-        self.loc_provider = LocationsProvider(self.list_endpoint or "", self.timeout, getattr(config, "refresh_interval", 0))
+        self.loc_provider = LocationsProvider(
+            self.list_endpoint or "",
+            self.timeout,
+            getattr(config, "refresh_interval", 0),
+        )
         self.io = IOProvider()
 
     async def connect(self, input_protocol: NavigateLocationInput) -> None:
         label = input_protocol.action
-        
+
         # Clean up the label in case LLM included command phrases
         # Remove common prefixes like "go to", "navigate to", "move to", etc.
         label = label.lower().strip()
-        for prefix in ["go to the ", "go to ", "navigate to the ", "navigate to ", 
-                       "move to the ", "move to ", "take me to the ", "take me to "]:
+        for prefix in [
+            "go to the ",
+            "go to ",
+            "navigate to the ",
+            "navigate to ",
+            "move to the ",
+            "move to ",
+            "take me to the ",
+            "take me to ",
+        ]:
             if label.startswith(prefix):
-                label = label[len(prefix):].strip()
-                logging.info(f"Cleaned location label: removed '{prefix}' prefix -> '{label}'")
+                label = label[len(prefix) :].strip()
+                logging.info(
+                    f"Cleaned location label: removed '{prefix}' prefix -> '{label}'"
+                )
                 break
 
         # Use provider to lookup
@@ -50,8 +60,17 @@ class NavConnector(ActionConnector[NavigateLocationInput]):
         if loc is None:
             # provide human-friendly feedback via IOProvider
             avail = self.loc_provider.get_all_locations()
-            avail_list = ", ".join([str(v.get("name") if isinstance(v, dict) else k) for k, v in avail.items()])
-            msg = f"Location '{label}' not found. Available: {avail_list}" if avail_list else f"Location '{label}' not found. No locations available."
+            avail_list = ", ".join(
+                [
+                    str(v.get("name") if isinstance(v, dict) else k)
+                    for k, v in avail.items()
+                ]
+            )
+            msg = (
+                f"Location '{label}' not found. Available: {avail_list}"
+                if avail_list
+                else f"Location '{label}' not found. No locations available."
+            )
             logging.warning(msg)
             self.io.add_input("NavigationResult", msg, None)
             return
@@ -87,7 +106,9 @@ class NavConnector(ActionConnector[NavigateLocationInput]):
             self.io.add_input("NavigationResult", msg, None)
         except Exception as e:
             logging.error(f"Error querying location list or publishing goal: {e}")
-            self.io.add_input("NavigationResult", f"Error initiating navigation: {e}", None)
+            self.io.add_input(
+                "NavigationResult", f"Error initiating navigation: {e}", None
+            )
 
     def tick(self) -> None:
         # no periodic work
