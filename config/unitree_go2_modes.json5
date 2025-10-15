@@ -71,7 +71,6 @@
           },
         ]
     },
-
     "slam": {
       "display_name": "SLAM Exploration",
       "description": "Autonomous navigation and mapping mode",
@@ -83,6 +82,9 @@
       "agent_inputs": [
         {
           "type": "Odom"
+        },
+        {
+          "type": "GoogleASRInput"
         },
         {
           "type": "UnitreeGo2Battery"
@@ -106,6 +108,16 @@
             "voice_id": "TbMNBJ27fH2U0VgpSNko",
             "silence_rate": 10
           }
+        },
+        {
+          "name": "remember_location",
+          "llm_label": "remember_location",
+          "connector": "location_api",
+          "config": {
+            "endpoint": " http://192.168.0.192:5000/maps/locations/add/slam",
+            "timeout": 5,
+            "map_name": "map"
+            }
         }
       ],
       "backgrounds": [
@@ -123,6 +135,91 @@
         },
         {
           "type": "UnitreeGo2Location",
+        }
+      ]
+    },
+    "navigation": {
+      "display_name": "Robot Navigation",
+      "description": "Autonomous navigation mode",
+      "system_prompt_base": "You are Bits. Your mission is to:\n1. Navigate the environment safely\n2. Report interesting discoveries\n3. If a person says 'Navigate to a location' or 'take me to a location', example 'Navigate to the table' you should check if that location exists in your database and then start navigate_location.\n\nPrioritize safety - always avoid obstacles.",
+      "entry_message": "Switching to navigation mode. I'll start navigating to different location on your command.",
+      "exit_message": "It was fun navigating around yaay!.",
+      "system_prompt_examples": "Here are some examples of interactions you might encounter:\n\n \
+  1. If a person says 'Navigate to a location' or 'take me to a location', example 'Navigate to the table' you should check if that location exists in your database and then start navigate_location.\n \
+  2. Do not navigate_location If there is no 'Navigate to a location' or 'take me to a location' command given by the person",
+      "remember_locations": true,
+      "hertz": 1,
+      "agent_inputs": [
+        {
+          "type": "LocationsInput"
+        },
+        {
+          "type": "Odom"
+        },
+        {
+          "type": "GoogleASRInput"
+        },
+        {
+          "type": "UnitreeGo2Battery"
+        },
+        {
+          "type": "GoogleASRRTSPInput"
+        },
+        {
+          "type": "VLMVilaRTSP"
+        },
+        {
+          "type": "SimplePaths"
+        }
+      ],
+      "agent_actions": [
+        {
+          "name": "speak",
+          "llm_label": "speak",
+          "connector": "elevenlabs_tts",
+          "config": {
+            "voice_id": "TbMNBJ27fH2U0VgpSNko",
+            "silence_rate": 10
+          }
+        },
+        {
+          "name": "move_go2_autonomy",
+          "llm_label": "move",
+          "connector": "unitree_sdk_advance"
+        },
+        {
+          "name": "navigate_location",
+          "llm_label": "navigate_location",
+          "connector": "nav",
+          "config": {
+          "list_endpoint": "http://192.168.0.192:5000/maps/locations/list",
+          "timeout": 5
+          }
+        },
+      ],
+      "backgrounds": [
+        {
+          "type": "Avatar"
+        },
+        {
+          "type": "UnitreeGo2State",
+        },
+        {
+          "type": "UnitreeGo2AMCL",
+        },
+        {
+          "type": "UnitreeGo2Navigation",
+        },
+        {
+          "type": "UnitreeGo2Location",
+        },
+        {
+          "type": "Locations",
+          "config": {
+            "list_endpoint": "http://192.168.0.192:5000/maps/locations/list",
+            "timeout": 5,
+            "refresh_interval": 30
+          }
         }
       ]
     },
