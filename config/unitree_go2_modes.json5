@@ -114,7 +114,7 @@
           "llm_label": "remember_location",
           "connector": "location_api",
           "config": {
-            "endpoint": " http://192.168.0.192:5000/maps/locations/add/slam",
+            "endpoint": " http://localhost:5000/maps/locations/add/slam",
             "timeout": 5,
             "map_name": "map"
             }
@@ -192,7 +192,7 @@
           "llm_label": "navigate_location",
           "connector": "nav",
           "config": {
-          "list_endpoint": "http://192.168.0.192:5000/maps/locations/list",
+          "list_endpoint": "http://localhost/maps/locations/list",
           "timeout": 5
           }
         },
@@ -216,7 +216,7 @@
         {
           "type": "Locations",
           "config": {
-            "list_endpoint": "http://192.168.0.192:5000/maps/locations/list",
+            "list_endpoint": "http://localhost:5000/maps/locations/list",
             "timeout": 5,
             "refresh_interval": 30
           }
@@ -359,7 +359,15 @@
       "from_mode": "welcome",
       "to_mode": "slam",
       "transition_type": "input_triggered",
-      "trigger_keywords": ["explore", "map", "navigate", "look around", "slam", "wander"],
+      "trigger_keywords": ["explore", "map", "look around", "slam", "wander"],
+      "priority": 3,
+      "cooldown_seconds": 5.0
+    },
+    {
+      "from_mode": "welcome",
+      "to_mode": "navigation",
+      "transition_type": "input_triggered",
+      "trigger_keywords": ["navigate", "navigation", "go to", "take me to", "show me"],
       "priority": 3,
       "cooldown_seconds": 5.0
     },
@@ -383,6 +391,14 @@
     // From SLAM mode
     {
       "from_mode": "slam",
+      "to_mode": "navigation",
+      "transition_type": "input_triggered",
+      "trigger_keywords": ["navigate", "navigation mode", "go to location", "take me to"],
+      "priority": 2,
+      "cooldown_seconds": 5.0
+    },
+    {
+      "from_mode": "slam",
       "to_mode": "conversation",
       "transition_type": "input_triggered",
       "trigger_keywords": ["stop exploring", "come back", "talk", "chat", "enough exploring", "done mapping"],
@@ -398,12 +414,46 @@
       "cooldown_seconds": 10.0
     },
 
+    // From navigation mode
+    {
+      "from_mode": "navigation",
+      "to_mode": "slam",
+      "transition_type": "input_triggered",
+      "trigger_keywords": ["explore", "map", "slam", "start mapping"],
+      "priority": 2,
+      "cooldown_seconds": 5.0
+    },
+    {
+      "from_mode": "navigation",
+      "to_mode": "conversation",
+      "transition_type": "input_triggered",
+      "trigger_keywords": ["stop", "chat", "talk", "conversation", "done navigating"],
+      "priority": 2,
+      "cooldown_seconds": 5.0
+    },
+    {
+      "from_mode": "navigation",
+      "to_mode": "guard",
+      "transition_type": "input_triggered",
+      "trigger_keywords": ["guard", "security", "patrol"],
+      "priority": 3,
+      "cooldown_seconds": 10.0
+    },
+
     // From conversation mode
+    {
+      "from_mode": "conversation",
+      "to_mode": "navigation",
+      "transition_type": "input_triggered",
+      "trigger_keywords": ["navigate", "go to", "take me to", "navigation mode"],
+      "priority": 2,
+      "cooldown_seconds": 5.0
+    },
     {
       "from_mode": "conversation",
       "to_mode": "slam",
       "transition_type": "input_triggered",
-      "trigger_keywords": ["explore", "map", "show me around", "navigate", "wander"],
+      "trigger_keywords": ["explore", "map", "show me around", "wander"],
       "priority": 2,
       "cooldown_seconds": 5.0
     },
@@ -417,6 +467,14 @@
     },
 
     // From guard mode
+    {
+      "from_mode": "guard",
+      "to_mode": "navigation",
+      "transition_type": "input_triggered",
+      "trigger_keywords": ["navigate", "go to location", "take me to"],
+      "priority": 2,
+      "cooldown_seconds": 5.0
+    },
     {
       "from_mode": "guard",
       "to_mode": "conversation",
