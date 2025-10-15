@@ -1,3 +1,26 @@
+"""
+Navigation Provider for Unitree Go2 robot with AI mode control.
+
+This provider listens to ROS2 navigation action status topic and manages:
+1. Navigation goal publishing
+2. Navigation status tracking
+3. Automatic AI mode control based on navigation state
+
+AI Mode Control Logic:
+- When navigation starts (ACCEPTED/EXECUTING): AI mode is DISABLED
+- When navigation succeeds (STATUS_SUCCEEDED=4): AI mode is RE-ENABLED
+- When navigation fails/canceled (CANCELED/ABORTED): AI mode REMAINS DISABLED
+
+This ensures the robot's autonomous behaviors don't interfere during navigation,
+and AI is only restored after successful navigation completion.
+
+ROS2 Topics:
+- Subscribes: /navigate_to_pose/_action/status (or _action/feedback)
+- Publishes: /goal_pose (navigation goals)
+- Publishes: /navigate_to_pose/_action/cancel_goal (goal cancellation)
+- Publishes: om/ai/request (AI enable/disable control)
+"""
+
 import logging
 from typing import Optional
 from uuid import uuid4
@@ -5,24 +28,18 @@ from uuid import uuid4
 import zenoh
 from zenoh import ZBytes
 
-from zenoh_msgs import (
-    geometry_msgs,
-    nav_msgs,
-    open_zenoh_session,
-    AIStatusRequest,
-    String,
-    prepare_header,
-)
+from zenoh_msgs import geometry_msgs, nav_msgs, open_zenoh_session
 
 from .singleton import singleton
 from .io_provider import IOProvider
 
+# Nav2 Action Status Codes
 status_map = {
     0: "UNKNOWN",
     1: "ACCEPTED",
     2: "EXECUTING",
     3: "CANCELING",
-    4: "SUCCEEDED",
+    4: "SUCCEEDED",  # Only this status re-enables AI mode
     5: "CANCELED",
     6: "ABORTED",
 }
@@ -45,7 +62,9 @@ class UnitreeGo2NavigationProvider:
         Parameters
         ----------
         navigation_status_topic : str, optional
-            The topic on which to subscribe for navigation messages (default is "navigate_to_pose/_action/status").
+            The ROS2 topic to subscribe for navigation status messages.
+            Default: "navigate_to_pose/_action/status"
+            Alternative: "navigate_to_pose/_action/feedback" for more detailed updates
         goal_pose_topic : str, optional
             The topic on which to publish goal poses (default is "goal_pose").
         cancel_goal_topic : str, optional
@@ -66,26 +85,6 @@ class UnitreeGo2NavigationProvider:
         self.cancel_goal_topic = cancel_goal_topic
 
         self.running: bool = False
-        # track whether a navigation goal is in progress
-        self._nav_in_progress: bool = False
-        # store the current goal ID for cancellation
-        self._current_goal_id: Optional[str] = None
-        
-        # IO provider to communicate runtime variables (e.g., ai_enabled)
-        try:
-            self._io = IOProvider()
-            # default to AI enabled unless explicitly disabled elsewhere
-            self._io.add_dynamic_variable("ai_enabled", True)
-        except Exception:
-            self._io = None
-        # declare ai status publisher topic
-        self.ai_topic = "om/ai/request"
-        self.ai_pub = None
-        try:
-            if self.session is not None:
-                self.ai_pub = self.session.declare_publisher(self.ai_topic)
-        except Exception:
-            logging.exception("Failed to declare AI status publisher")
 
     def navigation_status_message_callback(self, data: zenoh.Sample):
         """
@@ -106,76 +105,8 @@ class UnitreeGo2NavigationProvider:
                 logging.info("Latest Navigation Status: %s", latest_status)
                 self.navigation_status = status_map.get(latest_status.status, "UNKNOWN")
                 logging.info("Navigation Status: %s", self.navigation_status)
-                
-                # Manage AI enable/disable based on navigation state
-                try:
-                    if self._io is not None:
-                        # If navigation is accepted or executing, ensure AI disabled
-                        if latest_status.status in (1, 2):
-                            self._io.add_dynamic_variable("ai_enabled", False)
-                            self._nav_in_progress = True
-                        # Terminal states -> re-enable AI
-                        elif latest_status.status in (4, 5, 6):
-                            self._io.add_dynamic_variable("ai_enabled", True)
-                            self._nav_in_progress = False
-                            
-                            # Auto-cancel goal on success to prevent re-navigation
-                            if latest_status.status == 4:  # SUCCEEDED
-                                logging.info("Navigation succeeded, canceling goal to prevent re-navigation")
-                                self._cancel_current_goal()
-                    
-                    # Also publish an AIStatusRequest to notify other processes
-                    try:
-                        if self.ai_pub is not None:
-                            # for nav status messages we may not have a frame id; use 'map'
-                            header = prepare_header("map")
-                            code = 0 if latest_status.status in (1, 2) else 1 if latest_status.status in (4, 5, 6) else 1
-                            status_msg = AIStatusRequest(
-                                header=header,
-                                request_id=String(str(uuid4())),
-                                code=code,
-                            )
-                            self.ai_pub.put(status_msg.serialize())
-                    except Exception:
-                        logging.exception("Failed to publish AIStatusRequest from navigation status")
-                except Exception:
-                    logging.exception("Error updating AI enabled flag from navigation status")
         else:
             logging.warning("Received empty navigation status message")
-
-    def _cancel_current_goal(self):
-        """
-        Internal method to cancel the current navigation goal.
-        """
-        if self.session is None:
-            logging.error("Cannot cancel goal; Zenoh session is not available.")
-            return
-            
-        try:
-            # Create an empty cancel request or use the appropriate message type
-            # For ROS2 actions, we typically send an empty goal ID to cancel the current goal
-            # You may need to adjust this based on your zenoh_msgs implementation
-            cancel_payload = ZBytes(b"")  # Empty payload to cancel current goal
-            self.session.put(self.cancel_goal_topic, cancel_payload)
-            logging.info("Sent cancellation request to topic: %s", self.cancel_goal_topic)
-            self._current_goal_id = None
-        except Exception:
-            logging.exception("Failed to cancel navigation goal")
-
-    def cancel_navigation(self):
-        """
-        Public method to manually cancel the current navigation goal.
-        """
-        logging.info("Manually canceling navigation goal")
-        self._cancel_current_goal()
-        
-        # Re-enable AI immediately
-        try:
-            if self._io is not None:
-                self._io.add_dynamic_variable("ai_enabled", True)
-                self._nav_in_progress = False
-        except Exception:
-            logging.exception("Failed to re-enable AI after manual cancellation")
 
     def start(self):
         """
@@ -213,35 +144,30 @@ class UnitreeGo2NavigationProvider:
         if self.session is None:
             logging.error("Cannot publish goal pose; Zenoh session is not available.")
             return
-        
-        # Generate a new goal ID
-        self._current_goal_id = str(uuid4())
-        
-        # mark navigation in progress and disable AI while executing
-        try:
-            if self._io is not None:
-                self._io.add_dynamic_variable("ai_enabled", False)
-                self._nav_in_progress = True
-        except Exception:
-            logging.exception("Failed to set ai_enabled flag before publishing goal")
-        
-        # publish AIStatusRequest(code=0) so other processes know AI is disabled
-        try:
-            if self.ai_pub is not None:
-                header = prepare_header("map")
-                status_msg = AIStatusRequest(
-                    header=header,
-                    request_id=String(str(uuid4())),
-                    code=0,
-                )
-                self.ai_pub.put(status_msg.serialize())
-        except Exception:
-            logging.exception("Failed to publish AIStatusRequest before publishing goal")
 
         payload = ZBytes(pose.serialize())
         self.session.put(self.goal_pose_topic, payload)
         logging.info("Published goal pose to topic: %s with goal_id: %s", 
                     self.goal_pose_topic, self._current_goal_id)
+
+    def clear_goal_pose(self):
+        """
+        Clear/cancel all active navigation goals.
+        Publishes to the cancel_goal topic to stop navigation.
+        """
+        if self.session is None:
+            logging.error("Cannot cancel goal; Zenoh session is not available.")
+            return
+            
+        try:
+            # Send cancel request to Nav2
+            # Empty payload should cancel all active goals
+            cancel_payload = ZBytes(b"")
+            self.session.put(self.cancel_goal_topic, cancel_payload)
+            logging.info("📍 Sent cancel all goals request to: %s", self.cancel_goal_topic)
+            self._nav_in_progress = False
+        except Exception:
+            logging.exception("Failed to cancel navigation goals")
 
     @property
     def navigation_state(self) -> str:
@@ -253,6 +179,17 @@ class UnitreeGo2NavigationProvider:
             The current navigation state as a string.
         """
         return self.navigation_status
+
+    @property
+    def is_navigating(self) -> bool:
+        """
+        Check if navigation is currently in progress.
+        Returns
+        -------
+        bool
+            True if navigation is in progress, False otherwise.
+        """
+        return self._nav_in_progress
 
     @property
     def is_navigating(self) -> bool:
