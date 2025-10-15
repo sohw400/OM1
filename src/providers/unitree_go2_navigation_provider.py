@@ -130,17 +130,17 @@ class UnitreeGo2NavigationProvider:
                     if not self._nav_in_progress:
                         self._nav_in_progress = True
                         self._publish_ai_status(enabled=False)  # Disable AI during navigation
-                        logging.info("🤖 Navigation started - AI mode DISABLED")
+                        logging.info("Navigation started - AI mode disabled")
                 elif status_code == 4:  # STATUS_SUCCEEDED - Navigation completed successfully
                     if self._nav_in_progress:
                         self._nav_in_progress = False
                         self._publish_ai_status(enabled=True)  # Re-enable AI ONLY on success
-                        logging.info("✅ Navigation SUCCEEDED - AI mode RE-ENABLED")
+                        logging.info("Navigation succeeded - AI mode re-enabled")
                 elif status_code in (5, 6):  # CANCELED or ABORTED
                     if self._nav_in_progress:
                         self._nav_in_progress = False
                         # Do NOT re-enable AI mode on failure/cancellation
-                        logging.warning("❌ Navigation %s (code=%d) - AI mode REMAINS DISABLED", 
+                        logging.warning("Navigation %s (code=%d) - AI mode remains disabled", 
                                       self.navigation_status, status_code)
         else:
             logging.warning("Received empty navigation status message")
@@ -209,7 +209,7 @@ class UnitreeGo2NavigationProvider:
         # Disable AI mode immediately when navigation goal is published
         if not self._nav_in_progress:
             self._publish_ai_status(enabled=False)
-            logging.info("🤖 Navigation goal published - AI mode DISABLED immediately")
+            logging.info("Navigation goal published - AI mode disabled immediately")
         
         self._nav_in_progress = True
         payload = ZBytes(pose.serialize())
@@ -230,7 +230,7 @@ class UnitreeGo2NavigationProvider:
             # Empty payload should cancel all active goals
             cancel_payload = ZBytes(b"")
             self.session.put(self.cancel_goal_topic, cancel_payload)
-            logging.info("📍 Sent cancel all goals request to: %s", self.cancel_goal_topic)
+            logging.info("Sent cancel all goals request to: %s", self.cancel_goal_topic)
             self._nav_in_progress = False
         except Exception:
             logging.exception("Failed to cancel navigation goals")
