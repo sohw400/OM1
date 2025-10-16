@@ -10,20 +10,34 @@ class Locations(Background):
     """
 
     def __init__(self, config: BackgroundConfig = BackgroundConfig()):
+        """
+        Initialize the Locations background task.
+
+        Parameters
+        ----------
+        config : BackgroundConfig
+            Configuration for the background task.
+        """
         super().__init__(config)
 
-        endpoint = getattr(config, "list_endpoint", "")
-        timeout = getattr(config, "timeout", 5)
-        refresh_interval = getattr(config, "refresh_interval", 30)  # Default 30 seconds
+        location_endpoint = getattr(
+            self.config,
+            "location_endpoint",
+            "http://localhost:5000/maps/locations/list",
+        )
+        timeout = getattr(self.config, "timeout", 5)
+        refresh_interval = getattr(self.config, "refresh_interval", 30)
 
-        if not endpoint:
+        if not location_endpoint:
             logging.warning("Locations background: list_endpoint not configured")
 
         self.locations_provider = LocationsProvider(
-            list_endpoint=endpoint, timeout=timeout, refresh_interval=refresh_interval
+            location_endpoint=location_endpoint,
+            timeout=timeout,
+            refresh_interval=refresh_interval,
         )
         self.locations_provider.start()
 
         logging.info(
-            f"Locations Provider initialized in background (endpoint: {endpoint}, refresh: {refresh_interval}s)"
+            f"Locations Provider initialized in background (endpoint: {location_endpoint}, refresh: {refresh_interval}s)"
         )

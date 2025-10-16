@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import threading
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Union
 
 import aiohttp
 
@@ -14,42 +14,39 @@ from .singleton import singleton
 class LocationsProvider:
     """
     Provider that fetches locations from HTTP API in a background thread.
-
-    Follows the same pattern as GpsProvider, OdomProvider, etc.
-
-    Usage:
-      p = LocationsProvider(list_endpoint=url, refresh_interval=30)
-      p.start()  # Starts background thread
-      loc = p.get_location('kitchen')
     """
 
     def __init__(
-        self, list_endpoint: str = "", timeout: int = 5, refresh_interval: int = 30
+        self,
+        location_endpoint: str = "http://localhost:5000/maps/locations/list",
+        timeout: int = 5,
+        refresh_interval: int = 30,
     ):
         """
         Initialize the provider.
 
-        Parameters:
-          list_endpoint: URL to fetch locations from
-          timeout: HTTP request timeout in seconds
-          refresh_interval: How often to fetch (seconds)
+        Parameters
+        ----------
+        location_endpoint : str
+            The HTTP endpoint to fetch locations from. Default is "http://localhost:5000/maps/locations/list".
+        timeout : int
+            Timeout for HTTP requests in seconds.
+        refresh_interval : int
+            How often to refresh locations in seconds.
         """
-        self.list_endpoint = list_endpoint
+        self.location_endpoint = location_endpoint
         self.timeout = timeout
         self.refresh_interval = refresh_interval
         self._locations: Dict[str, Dict] = {}
         self._thread: Optional[threading.Thread] = None
         self._running = False
 
-        # Get IOProvider to store locations for inputs to access
-        try:
-            self.io_provider = IOProvider()
-        except Exception:
-            logging.exception("Failed to get IOProvider in LocationsProvider")
-            self.io_provider = None
+        self.io_provider = IOProvider()
 
     def start(self) -> None:
-        """Start the background fetch thread."""
+        """
+        Start the background fetch thread.
+        """
         if self._running:
             logging.warning("LocationsProvider already running")
             return
@@ -60,13 +57,17 @@ class LocationsProvider:
         logging.info("LocationsProvider background thread started")
 
     def stop(self) -> None:
-        """Stop the background fetch thread."""
+        """
+        Stop the background fetch thread.
+        """
         self._running = False
         if self._thread:
             self._thread.join(timeout=5)
 
     def _run(self) -> None:
-        """Background thread that periodically fetches locations."""
+        """
+        Background thread that periodically fetches locations.
+        """
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
@@ -76,21 +77,22 @@ class LocationsProvider:
             except Exception:
                 logging.exception("Error fetching locations")
 
-            # Sleep in small increments so we can stop quickly
             for _ in range(self.refresh_interval):
                 if not self._running:
                     break
                 asyncio.run(asyncio.sleep(1))
 
     async def _fetch(self) -> None:
-        """Fetch locations from the API and update cache."""
-        if not self.list_endpoint:
+        """
+        Fetch locations from the API and update cache.
+        """
+        if not self.location_endpoint:
             return
 
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    self.list_endpoint, timeout=self.timeout
+                    self.location_endpoint, timeout=self.timeout
                 ) as resp:
                     text = await resp.text()
                     if resp.status < 200 or resp.status >= 300:
@@ -101,7 +103,6 @@ class LocationsProvider:
 
                     data = json.loads(text)
 
-                    # Handle nested message format
                     raw_message = (
                         data.get("message") if isinstance(data, dict) else None
                     )
@@ -124,8 +125,15 @@ class LocationsProvider:
         except Exception:
             logging.exception("Error fetching locations")
 
-    def _update_locations(self, locations_raw) -> None:
-        """Parse and store locations."""
+    def _update_locations(self, locations_raw: Union[Dict, List]) -> None:
+        """
+        Parse and store locations.
+
+        Parameters
+        ----------
+        locations_raw : Dict or List
+            Raw locations data from the API.
+        """
         parsed = {}
 
         if isinstance(locations_raw, dict):
@@ -145,21 +153,31 @@ class LocationsProvider:
 
         self._locations = parsed
 
-        # Store in IOProvider so LocationsInput can access it
-        if self.io_provider is not None:
-            self.io_provider.add_dynamic_variable("available_locations", parsed)
-            logging.info(
-                f"LocationsProvider loaded {len(parsed)} locations and stored in IOProvider"
-            )
-        else:
-            logging.info(f"LocationsProvider loaded {len(parsed)} locations")
-
     def get_all_locations(self) -> Dict[str, Dict]:
-        """Get all cached locations."""
+        """
+        Get all cached locations.
+
+        Returns
+        -------
+        Dict
+            A dictionary of all locations keyed by their labels.
+        """
         return dict(self._locations)
 
     def get_location(self, label: str) -> Optional[Dict]:
-        """Get a specific location by label."""
+        """
+        Get a specific location by label.
+
+        Parameters
+        ----------
+        label : str
+            The label of the location to retrieve.
+
+        Returns
+        -------
+        Dict or None
+            The location data if found, otherwise None.
+        """
         if not label:
             return None
         key = label.strip().lower()
