@@ -50,7 +50,7 @@ class LocationsInput(FuserInput[str]):
 
     async def _poll(self) -> Optional[str]:
         """
-        Poll IOProvider for locations data.
+        Poll the LocationsProvider for the latest locations.
 
         Returns
         -------
