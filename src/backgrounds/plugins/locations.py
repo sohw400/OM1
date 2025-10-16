@@ -20,24 +20,21 @@ class Locations(Background):
         """
         super().__init__(config)
 
-        location_endpoint = getattr(
+        base_url = getattr(
             self.config,
-            "location_endpoint",
+            "base_url",
             "http://localhost:5000/maps/locations/list",
         )
         timeout = getattr(self.config, "timeout", 5)
         refresh_interval = getattr(self.config, "refresh_interval", 30)
 
-        if not location_endpoint:
-            logging.warning("Locations background: list_endpoint not configured")
-
         self.locations_provider = LocationsProvider(
-            location_endpoint=location_endpoint,
+            base_url=base_url,
             timeout=timeout,
             refresh_interval=refresh_interval,
         )
         self.locations_provider.start()
 
         logging.info(
-            f"Locations Provider initialized in background (endpoint: {location_endpoint}, refresh: {refresh_interval}s)"
+            f"Locations Provider initialized in background (base_url: {base_url}, refresh: {refresh_interval}s)"
         )

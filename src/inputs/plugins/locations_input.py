@@ -34,17 +34,15 @@ class LocationsInput(FuserInput[str]):
         """
         super().__init__(config)
 
-        location_endpoint = getattr(
+        base_url = getattr(
             self.config,
-            "location_endpoint",
+            "base_url",
             "http://localhost:5000/maps/locations/list",
         )
         timeout = getattr(self.config, "timeout", 5)
         refresh_interval = getattr(self.config, "refresh_interval", 30)
 
-        self.locations_provider = LocationsProvider(
-            location_endpoint, timeout, refresh_interval
-        )
+        self.locations_provider = LocationsProvider(base_url, timeout, refresh_interval)
         self.io_provider = IOProvider()
 
         self.messages: List[Message] = []

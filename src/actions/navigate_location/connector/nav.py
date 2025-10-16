@@ -25,17 +25,15 @@ class NavConnector(ActionConnector[NavigateLocationInput]):
         """
         super().__init__(config)
 
-        location_endpoint = getattr(
+        base_url = getattr(
             self.config,
-            "location_endpoint",
+            "base_url",
             "http://localhost:5000/maps/locations/list",
         )
         timeout = getattr(self.config, "timeout", 5)
         refresh_interval = getattr(self.config, "refresh_interval", 30)
 
-        self.location_provider = LocationsProvider(
-            location_endpoint, timeout, refresh_interval
-        )
+        self.location_provider = LocationsProvider(base_url, timeout, refresh_interval)
         self.unitree_go2_navigation_provider = UnitreeGo2NavigationProvider()
         self.io_provider = IOProvider()
 

@@ -18,7 +18,7 @@ class LocationsProvider:
 
     def __init__(
         self,
-        location_endpoint: str = "http://localhost:5000/maps/locations/list",
+        base_url: str = "http://localhost:5000/maps/locations/list",
         timeout: int = 5,
         refresh_interval: int = 30,
     ):
@@ -27,14 +27,14 @@ class LocationsProvider:
 
         Parameters
         ----------
-        location_endpoint : str
+        base_url : str
             The HTTP endpoint to fetch locations from. Default is "http://localhost:5000/maps/locations/list".
         timeout : int
             Timeout for HTTP requests in seconds.
         refresh_interval : int
             How often to refresh locations in seconds.
         """
-        self.location_endpoint = location_endpoint
+        self.base_url = base_url
         self.timeout = timeout
         self.refresh_interval = refresh_interval
         self._locations: Dict[str, Dict] = {}
@@ -86,14 +86,12 @@ class LocationsProvider:
         """
         Fetch locations from the API and update cache.
         """
-        if not self.location_endpoint:
+        if not self.base_url:
             return
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    self.location_endpoint, timeout=self.timeout
-                ) as resp:
+                async with session.get(self.base_url, timeout=self.timeout) as resp:
                     text = await resp.text()
                     if resp.status < 200 or resp.status >= 300:
                         logging.error(
