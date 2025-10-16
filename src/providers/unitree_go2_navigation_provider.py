@@ -55,6 +55,28 @@ status_map = {
 class UnitreeGo2NavigationProvider:
     """
     Navigation Provider for Unitree Go2 robot.
+
+    This class implements a singleton pattern to manage:
+        * Navigation goal publishing to ROS2 Nav2 stack
+        * Navigation status monitoring from ROS2 action server
+        * Automatic AI mode control based on navigation state
+
+    The provider automatically manages AI mode control during navigation:
+    - Disables AI mode when navigation starts (ACCEPTED/EXECUTING status)
+    - Re-enables AI mode only on successful navigation completion (SUCCEEDED status)
+    - Keeps AI mode disabled on navigation failure/cancellation (CANCELED/ABORTED status)
+
+    Parameters
+    ----------
+    navigation_status_topic : str, optional
+        The ROS2 topic to subscribe for navigation status messages.
+        Default: "navigate_to_pose/_action/status"
+        Alternative: "navigate_to_pose/_action/feedback" for more detailed updates
+    goal_pose_topic : str, optional
+        The topic on which to publish goal poses (default is "goal_pose").
+    cancel_goal_topic : str, optional
+        The topic on which to publish goal cancellations
+        (default is "navigate_to_pose/_action/cancel_goal").
     """
 
     def __init__(
