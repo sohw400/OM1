@@ -21,7 +21,7 @@
     {
       "type": "LocationsInput",
       "config": {
-        "list_endpoint": "http://192.168.0.192:5000/maps/locations/list",
+        "list_endpoint": "http://localhost:5000/maps/locations/list",
         "timeout": 5,
         "refresh_interval": 60
       }
@@ -60,7 +60,7 @@
       "llm_label": "navigate_location",
       "connector": "nav",
       "config": {
-      "list_endpoint": "http://192.168.0.192:5000/maps/locations/list",
+      "list_endpoint": "http://localhost:5000/maps/locations/list",
       "timeout": 5
       }
     },
@@ -98,7 +98,7 @@
     {
       "type": "Locations",
       "config": {
-        "list_endpoint": "http://192.168.0.192:5000/maps/locations/list",
+        "list_endpoint": "http://localhost:5000/maps/locations/list",
         "timeout": 5,
         "refresh_interval": 30
       }
