@@ -86,22 +86,6 @@ class UnitreeGo2AMCLProvider(ZenohListenerProvider):
                 self.localization_pose,
             )
 
-            # AI status publishing disabled - navigation provider handles AI control
-            # current_time = time.time()
-            # if (
-            #     self.pub is not None
-            #     and current_time - self.last_status_publish_time
-            #     >= self.status_publish_interval
-            # ):
-            #     header = prepare_header(message.header.frame_id)
-            #     status_msg = AIStatusRequest(
-            #         header=header,
-            #         request_id=String(str(uuid4())),
-            #         code=1 if self.localization_status else 0,
-            #     )
-            #     self.pub.put(status_msg.serialize())
-            #     self.last_status_publish_time = current_time
-            #     logging.debug("Published status message at %s", current_time)
         else:
             logging.warning("Received empty AMCL message")
 
