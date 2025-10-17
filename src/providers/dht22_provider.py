@@ -78,7 +78,6 @@ class DHT22Provider:
         Read temperature and humidity from DHT22 sensor.
         """
         if self.mock_mode:
-            # Generate realistic mock data with slight variations
             import random
 
             base_temp = 22.0
