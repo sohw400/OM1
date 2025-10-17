@@ -51,6 +51,7 @@ class CortexRuntime:
         self.background_orchestrator = BackgroundOrchestrator(config)
         self.sleep_ticker_provider = SleepTickerProvider()
         self.io_provider = IOProvider()
+        self.last_inputs_fused = ""
 
     async def run(self) -> None:
         """
@@ -133,6 +134,17 @@ class CortexRuntime:
         """
         # collect all the latest inputs
         finished_promises, _ = await self.action_orchestrator.flush_promises()
+
+        # get current inputs to check for changes
+        input_strings = [input.formatted_latest_buffer() for input in self.config.agent_inputs]
+        inputs_fused = " ".join([s for s in input_strings if s is not None])
+
+        # skip LLM call if no new inputs and no completed actions
+        if inputs_fused == self.last_inputs_fused and len(finished_promises) == 0:
+            logging.debug("Skipping LLM call - no new inputs or completed actions")
+            return
+
+        self.last_inputs_fused = inputs_fused
 
         # combine those inputs into a suitable prompt
         prompt = self.fuser.fuse(self.config.agent_inputs, finished_promises)
