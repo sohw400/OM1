@@ -74,12 +74,10 @@ class BH1750Provider:
         Read the current light level from the sensor.
         """
         if self.mock_mode:
-            # Simulate realistic indoor lighting variations
             import random
 
-            # Base value represents typical indoor lighting
+            # Simulate realistic indoor lighting variations
             base_lux = 250.0
-            # Add some variation to make it feel more realistic
             variation = random.uniform(-50.0, 100.0)
             self.lux = max(0, base_lux + variation)
         else:
