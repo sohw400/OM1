@@ -15,6 +15,7 @@ from llm import LLM, LLMConfig, load_llm
 from runtime.robotics import load_unitree
 from simulators import load_simulator
 from simulators.base import Simulator, SimulatorConfig
+from validation import validate_range, validate_required, validate_type
 
 
 @dataclass
@@ -84,6 +85,17 @@ def load_config(config_name: str) -> RuntimeConfig:
 
     with open(config_path, "r+") as f:
         raw_config = json5.load(f)
+
+    # Validate required fields
+    hertz = validate_required(raw_config, "hertz", config_name)
+    validate_type(hertz, (int, float), "hertz", config_name)
+    validate_range(hertz, "hertz", min_value=0.001, config_name=config_name)
+
+    name = validate_required(raw_config, "name", config_name)
+    validate_type(name, str, "name", config_name)
+
+    cortex_llm_config = validate_required(raw_config, "cortex_llm", config_name)
+    validate_type(cortex_llm_config, dict, "cortex_llm", config_name)
 
     g_robot_ip = raw_config.get("robot_ip", None)
     if g_robot_ip is None or g_robot_ip == "" or g_robot_ip == "192.168.0.241":
