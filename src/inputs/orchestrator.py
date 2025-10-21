@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from inputs.base import Sensor
 
@@ -39,10 +40,26 @@ class InputOrchestrator:
         """
         Process events from a single input source.
 
+        Handles errors gracefully to prevent a single input failure from
+        stopping the entire system.
+
         Parameters
         ----------
         input : Sensor
             Input source to listen to
         """
-        async for event in input.listen():
-            await input.raw_to_text(event)
+        input_name = input.__class__.__name__
+
+        try:
+            async for event in input.listen():
+                try:
+                    await input.raw_to_text(event)
+                except Exception as e:
+                    logging.error(
+                        f"Error processing event from {input_name}: {e}",
+                        exc_info=True,
+                    )
+        except Exception as e:
+            logging.error(
+                f"Input listener stopped for {input_name}: {e}", exc_info=True
+            )
