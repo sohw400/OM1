@@ -85,5 +85,6 @@ class ROS2PublisherProvider(Node):
         self.running = False
         if self._thread:
             self._thread.join(timeout=5)
-        self._publisher.Close()
+        if hasattr(self, "publisher_"):
+            self.destroy_publisher(self.publisher_)
         logging.info("ROS2 Publisher Provider stopped")
