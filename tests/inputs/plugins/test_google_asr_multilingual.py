@@ -11,7 +11,7 @@ def mock_asr_provider():
     with patch("inputs.plugins.google_asr.ASRProvider") as mock:
         mock_instance = Mock()
         mock.return_value = mock_instance
-        yield mock_instance
+        yield mock
 
 
 @pytest.fixture
@@ -28,7 +28,14 @@ def mock_conversation():
 
 def test_language_code_map_contains_required_languages():
     """Test that language code map has all required languages."""
-    required_languages = ["english", "chinese", "german", "french", "japanese", "korean"]
+    required_languages = [
+        "english",
+        "chinese",
+        "german",
+        "french",
+        "japanese",
+        "korean",
+    ]
     for lang in required_languages:
         assert lang in LANGUAGE_CODE_MAP
 
