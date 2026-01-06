@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from llm import LLM, LLMConfig
 from llm.function_schemas import convert_function_calls_to_actions
 from llm.output_model import CortexOutputModel
+from providers.avatar_llm_state_provider import AvatarLLMState
 from providers.llm_history_manager import LLMHistoryManager
 
 R = T.TypeVar("R", bound=BaseModel)
@@ -23,19 +24,26 @@ class DeepSeekLLM(LLM[R]):
     Parameters
     ----------
     config : LLMConfig
-        Configuration object containing API settings. If not provided, defaults
-        will be used.
+        Configuration object containing API settings.
     available_actions : list[AgentAction], optional
-        List of available actions for function call generation. If provided.
+        List of available actions for function call generation. If provided,
+        the LLM will use function calls instead of structured JSON output.
     """
 
     def __init__(
         self,
-        config: LLMConfig = LLMConfig(),
+        config: LLMConfig,
         available_actions: T.Optional[T.List] = None,
     ):
         """
         Initialize the DeepSeek LLM instance.
+
+        Parameters
+        ----------
+        config : LLMConfig
+            Configuration settings for the LLM.
+        available_actions : list[AgentAction], optional
+            List of available actions for function calling.
         """
         super().__init__(config, available_actions)
 
@@ -52,8 +60,11 @@ class DeepSeekLLM(LLM[R]):
         # Initialize history manager
         self.history_manager = LLMHistoryManager(self._config, self._client)
 
+    @AvatarLLMState.trigger_thinking()
     @LLMHistoryManager.update_history()
-    async def ask(self, prompt: str, messages: T.List[T.Dict[str, str]]) -> R | None:
+    async def ask(
+        self, prompt: str, messages: T.List[T.Dict[str, str]] = []
+    ) -> T.Optional[R]:
         """
         Send a prompt to the DeepSeek API and get a structured response.
 

@@ -37,10 +37,17 @@ from .sensor_msgs import (
 from .status_msgs import (
     AIStatusRequest,
     AIStatusResponse,
+    ASRText,
     AudioStatus,
+    AvatarFaceRequest,
+    AvatarFaceResponse,
     CameraStatus,
+    ConfigRequest,
+    ConfigResponse,
     ModeStatusRequest,
     ModeStatusResponse,
+    TTSStatusRequest,
+    TTSStatusResponse,
 )
 from .std_msgs import ColorRGBA, Duration, Header, String, Time, prepare_header
 
@@ -57,8 +64,15 @@ __all__ = [
     "CameraStatus",
     "AIStatusRequest",
     "AIStatusResponse",
+    "ASRText",
+    "AvatarFaceRequest",
+    "AvatarFaceResponse",
+    "ConfigRequest",
+    "ConfigResponse",
     "ModeStatusRequest",
     "ModeStatusResponse",
+    "TTSStatusRequest",
+    "TTSStatusResponse",
     # geographic_msgs
     "GeoPoint",
     "GeoPointStamped",
